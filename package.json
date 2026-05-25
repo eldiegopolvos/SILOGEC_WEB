@@ -2,7 +2,7 @@
   "name": "silogec-web",
   "version": "1.0.0",
   "private": true,
-  "description": "Aplicación web operativa para SILOGEC.",
+  "description": "Aplicación web para automatizar procesos de recepción, embarques, consolidado y operación logística.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
