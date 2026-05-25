@@ -1,0 +1,14 @@
+import { ESTATUS_ECOM } from "../constants";
+
+export const ECOMMERCE_STATUS = {
+  RECIBIDO: "RECIBIDO",
+  EN_PROCESO: "EN PROCESO",
+  TERMINADO: "TERMINADO",
+  ENVIADO: "ENVIADO",
+  FUERA_DE_VENTANA: "FUERA DE VENTANA",
+  CANCELADO: "CANCELADO",
+  RETORNO: "RETORNO",
+  REENVIO: "REENVIO",
+};
+
+export const ecommerceStatusList = ESTATUS_ECOM;
