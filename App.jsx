@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
+import SilogecAssistant from "./components/SilogecAssistant";
 
 import Dashboard from "./pages/Dashboard";
 import Recepcion from "./pages/Recepcion";
@@ -54,6 +55,8 @@ function App() {
             </Routes>
           </section>
         </main>
+
+        <SilogecAssistant />
       </div>
     </BrowserRouter>
   );
