@@ -1,6 +1,43 @@
 # SILOGEC Web
 
-Aplicación web operativa para SILOGEC. Incluye panel ejecutivo, navegación por módulos y flujo E-COM para control de lotes, pedidos, guías, paqueterías, estatus y datos temporales en navegador.
+SILOGEC Web es una aplicación operativa enfocada en automatizar y ordenar procesos de recepción, embarques, consolidado y comercio electrónico. El objetivo principal es facilitar que el equipo capture, procese, consulte y cierre actividades con mayor control, trazabilidad y velocidad.
+
+Este proyecto nace desde la operación diaria de Recepción y Embarques, con enfoque en reducir trabajo manual, centralizar información y dar visibilidad al avance de cada proceso.
+
+## Contexto Operativo
+
+El sistema está orientado a apoyar las actividades del área coordinada por el Coordinador de Recepción y Embarques. Busca que el equipo tenga una herramienta más clara para:
+
+- Registrar entradas y recepciones.
+- Controlar pedidos y lotes de E-COM.
+- Procesar guías, paqueterías y canales de entrega.
+- Dar seguimiento a embarques locales y foráneos.
+- Consolidar información operativa.
+- Consultar estatus e incidencias.
+- Preparar reportes ejecutivos y operativos.
+
+## Objetivo
+
+Construir una plataforma web modular que permita automatizar diferentes procesos logísticos y hacer más factible el trabajo diario del equipo, desde el ingreso de información hasta el cierre del proceso de embarques, consolidado y recepción.
+
+## Módulos Actuales
+
+- Panel Ejecutivo
+- Recepción
+- Comercio Electrónico
+- Embarques Foráneo
+- Embarques Local
+- Incidencias
+- Rastreo
+- Reportes Ejecutivos
+- Administración
+
+## Flujo E-COM
+
+- `Lotes` es la vista operativa principal.
+- `Pedidos sin lote` funciona como bandeja para pedidos manuales o pendientes por vincular.
+- Los datos temporales se guardan en `localStorage` del navegador.
+- La opción `Limpiar temporal` reinicia lotes, pedidos temporales y consecutivo local.
 
 ## Requisitos
 
@@ -25,7 +62,7 @@ Después abre la URL que muestre Vite, normalmente:
 http://localhost:5173
 ```
 
-## Build de producción
+## Build de Producción
 
 ```bash
 npm run build
@@ -33,27 +70,12 @@ npm run build
 
 El resultado se genera en `dist/`. Esa carpeta no se versiona en Git porque se puede reconstruir con el comando anterior.
 
-## Vista previa del build
+## Vista Previa Del Build
 
 ```bash
 npm run preview
 ```
 
-## Módulos actuales
+## Estado Del Proyecto
 
-- Panel Ejecutivo
-- Recepción
-- Comercio Electrónico
-- Embarques Foráneo
-- Embarques Local
-- Incidencias
-- Rastreo
-- Reportes Ejecutivos
-- Administración
-
-## Flujo E-COM
-
-- `Lotes` es la vista operativa principal.
-- `Pedidos sin lote` funciona como bandeja para pedidos manuales o pendientes por vincular.
-- Los datos temporales se guardan en `localStorage` del navegador.
-- La opción `Limpiar temporal` reinicia lotes, pedidos temporales y consecutivo local.
+Proyecto en evolución. Actualmente funciona como base web para integrar y automatizar procesos operativos del área de Recepción y Embarques, con crecimiento planeado hacia reportes, trazabilidad, consolidaciones, control de usuarios y conexión con fuentes de datos internas.
