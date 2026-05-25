@@ -2,7 +2,7 @@
   "name": "silogec-web",
   "version": "1.0.0",
   "private": true,
-  "description": "Aplicación web para automatizar procesos de recepción, embarques, consolidado y operación logística.",
+  "description": "Aplicación web para automatizar recepción, embarques, consolidado, trazabilidad por paqueterías y medición de KPIs/SLA.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
