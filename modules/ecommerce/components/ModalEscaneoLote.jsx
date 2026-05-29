@@ -2,8 +2,12 @@ import { ScanLine, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import InlineAlert from "../../../components/InlineAlert";
 import ModalShell from "../../../components/ModalShell";
-import { PAQUETERIAS_ECOM } from "../constants";
-import { detectarPaqueteriaPorGuia, normalizarGuia } from "../utils/ecommerceUtils";
+import { ESTATUS_LOTE_ECOM, PAQUETERIAS_ECOM } from "../constants";
+import {
+  detectarPaqueteriaPorGuia,
+  normalizarGuia,
+  obtenerClaseEstatus,
+} from "../utils/ecommerceUtils";
 
 export default function ModalEscaneoLote({
   abierto,
@@ -25,32 +29,33 @@ export default function ModalEscaneoLote({
   const inputRef = useRef(null);
 
   useEffect(() => {
-    if (abierto) {
-      setAviso(null);
-      setPedidoEscaneado("");
-      setGuiaLote("");
-      setPaqueteriaLote("Pendiente");
-      setSobrescribir(false);
+    if (!abierto) return;
 
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
-    }
+    setAviso(null);
+    setPedidoEscaneado("");
+    setGuiaLote("");
+    setPaqueteriaLote("Pendiente");
+    setSobrescribir(false);
+
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
   }, [abierto]);
 
   if (!abierto || !lote) return null;
 
-  const diferencia = lote.piezasEsperadas - pedidosDelLote.length;
-
-  const limpiarAvisoDespues = () => {
-    setTimeout(() => {
-      setAviso(null);
-    }, 3500);
-  };
+  const piezasEsperadas = Number(lote.piezasEsperadas || 0);
+  const piezasEscaneadas = pedidosDelLote.length;
+  const diferencia = piezasEsperadas - piezasEscaneadas;
+  const soloLectura = [
+    ESTATUS_LOTE_ECOM.LOTE_CERRADO,
+    ESTATUS_LOTE_ECOM.ENVIADO,
+    ESTATUS_LOTE_ECOM.CANCELADO,
+  ].includes(lote.estatus);
 
   const mostrarAviso = (nuevoAviso) => {
     setAviso(nuevoAviso);
-    limpiarAvisoDespues();
+    setTimeout(() => setAviso(null), 3500);
   };
 
   const enfocarInputEscaneo = () => {
@@ -61,17 +66,17 @@ export default function ModalEscaneoLote({
 
   const escanearPedido = async (e) => {
     e.preventDefault();
+    if (soloLectura) return;
 
     const pedido = pedidoEscaneado.trim();
-
     if (!pedido) return;
 
-    if (pedidosDelLote.length >= lote.piezasEsperadas) {
+    if (pedidosDelLote.length >= piezasEsperadas) {
       const confirmar = onConfirmar
         ? await onConfirmar({
             title: "Pieza adicional",
             message:
-              "Ya alcanzaste la cantidad esperada del lote. ¿Deseas agregar una pieza adicional?",
+              "Ya alcanzaste la cantidad esperada del lote. Deseas agregar una pieza adicional?",
             tone: "warning",
             confirmLabel: "Agregar pieza",
           })
@@ -90,10 +95,8 @@ export default function ModalEscaneoLote({
       mostrarAviso({
         tipo: "error",
         titulo: resultado.titulo || "No se pudo agregar el pedido",
-        mensaje:
-          resultado.mensaje || "Valida la información e intenta nuevamente.",
+        mensaje: resultado.mensaje || "Valida la informacion e intenta nuevamente.",
       });
-
       setPedidoEscaneado("");
       enfocarInputEscaneo();
       return;
@@ -111,6 +114,7 @@ export default function ModalEscaneoLote({
 
   const asignarGuiaRapida = (e) => {
     e.preventDefault();
+    if (soloLectura) return;
 
     const guia = normalizarGuia(guiaLote);
 
@@ -118,7 +122,7 @@ export default function ModalEscaneoLote({
       mostrarAviso({
         tipo: "error",
         titulo: "Datos incompletos",
-        mensaje: "Captura una guía o selecciona una paquetería válida.",
+        mensaje: "Captura una guia o selecciona una paqueteria valida.",
       });
       return;
     }
@@ -127,7 +131,7 @@ export default function ModalEscaneoLote({
       mostrarAviso({
         tipo: "error",
         titulo: "Lote sin pedidos",
-        mensaje: "Primero escanea pedidos antes de asignar guía o paquetería.",
+        mensaje: "Primero escanea pedidos antes de asignar guia o paqueteria.",
       });
       return;
     }
@@ -147,29 +151,28 @@ export default function ModalEscaneoLote({
       mostrarAviso({
         tipo: "error",
         titulo: resultado.titulo || "No se pudo asignar",
-        mensaje: resultado.mensaje || "Valida la información.",
+        mensaje: resultado.mensaje || "Valida la informacion.",
       });
-
       enfocarInputEscaneo();
       return;
     }
 
     mostrarAviso({
       tipo: "success",
-      titulo: "Asignación aplicada",
-      mensaje: resultado?.mensaje || "Se actualizó la información del lote.",
+      titulo: "Asignacion aplicada",
+      mensaje: resultado?.mensaje || "Se actualizo la informacion del lote.",
     });
 
     setGuiaLote("");
     setPaqueteriaLote("Pendiente");
     setSobrescribir(false);
-
     enfocarInputEscaneo();
   };
 
   const actualizarGuiaPedido = (pedido, nuevaGuia) => {
-    const guia = normalizarGuia(nuevaGuia);
+    if (soloLectura) return;
 
+    const guia = normalizarGuia(nuevaGuia);
     const paqueteriaDetectada =
       guia === "" ? "Pendiente" : detectarPaqueteriaPorGuia(guia);
 
@@ -180,8 +183,10 @@ export default function ModalEscaneoLote({
   };
 
   const cambiarPaqueteriaManualPedido = (pedido, nuevaPaqueteria) => {
+    if (soloLectura) return;
+
     const guiaBase =
-      pedido.guia && String(pedido.guia).trim().toUpperCase() !== "SIN GUÍA"
+      pedido.guia && String(pedido.guia).trim().toUpperCase() !== "SIN GUIA"
         ? pedido.guia
         : "";
 
@@ -194,12 +199,12 @@ export default function ModalEscaneoLote({
   return (
     <ModalShell
       abierto={abierto}
-      eyebrow="Recepción E-COM por lote"
+      eyebrow={soloLectura ? "Detalle E-COM por lote" : "Recepcion E-COM por lote"}
       title={lote.lote}
       description={
         <>
-          Plataforma: <strong>{lote.plataforma}</strong> · Responsable:{" "}
-          <strong>{lote.responsable}</strong>
+          Plataforma: <strong>{lote.plataforma}</strong> - Responsable:{" "}
+          <strong>{lote.responsableLote || lote.responsable || "-"}</strong>
         </>
       }
       icon={ScanLine}
@@ -212,178 +217,188 @@ export default function ModalEscaneoLote({
             onClick={onCerrar}
             className="rounded-xl bg-[#071f3a] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#0a2a4d]"
           >
-            Cerrar lote
+            {soloLectura ? "Cerrar detalle" : "Cerrar lote"}
           </button>
         </div>
       }
     >
       <div className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-semibold uppercase text-slate-500">
-                Esperadas
-              </div>
-              <div className="mt-1 text-2xl font-bold text-[#071f3a]">
-                {lote.piezasEsperadas}
-              </div>
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase text-slate-500">
+              Esperadas
             </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-semibold uppercase text-slate-500">
-                Escaneadas
-              </div>
-              <div className="mt-1 text-2xl font-bold text-[#071f3a]">
-                {pedidosDelLote.length}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-semibold uppercase text-slate-500">
-                Diferencia
-              </div>
-              <div
-                className={`mt-1 text-2xl font-bold ${
-                  diferencia === 0 ? "text-emerald-700" : "text-amber-700"
-                }`}
-              >
-                {diferencia}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-semibold uppercase text-slate-500">
-                Estatus recepción
-              </div>
-              <div className="mt-1 text-sm font-bold text-[#071f3a]">
-                {diferencia === 0 ? "COMPLETO" : "EN RECEPCIÓN"}
-              </div>
+            <div className="mt-1 text-2xl font-bold text-[#071f3a]">
+              {piezasEsperadas}
             </div>
           </div>
 
-          {aviso && (
-            <InlineAlert
-              className="mt-5"
-              tone={aviso.tipo === "error" ? "error" : "success"}
-              title={aviso.titulo}
-              message={aviso.mensaje}
-            />
-          )}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase text-slate-500">
+              Escaneadas
+            </div>
+            <div className="mt-1 text-2xl font-bold text-[#071f3a]">
+              {piezasEscaneadas}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase text-slate-500">
+              Diferencia
+            </div>
+            <div
+              className={`mt-1 text-2xl font-bold ${
+                diferencia === 0 ? "text-emerald-700" : "text-amber-700"
+              }`}
+            >
+              {diferencia}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase text-slate-500">
+              Estatus recepcion
+            </div>
+            <div className="mt-1 text-sm font-bold text-[#071f3a]">
+              {diferencia === 0 ? "COMPLETO" : "EN RECEPCION"}
+            </div>
+          </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-5 overflow-hidden xl:grid-cols-[380px_minmax(0,1fr)]">
-          <div className="min-w-[360px] space-y-5 overflow-auto pr-1">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <h3 className="text-lg font-bold text-[#071f3a]">
-                Escaneo de pedidos
-              </h3>
+        {aviso && (
+          <InlineAlert
+            className="mt-5"
+            tone={aviso.tipo === "error" ? "error" : "success"}
+            title={aviso.titulo}
+            message={aviso.mensaje}
+          />
+        )}
 
-              <p className="mt-1 text-sm text-slate-500">
-                Escanea el código de barras y presiona Enter.
-              </p>
+        {soloLectura && (
+          <InlineAlert
+            tone="info"
+            title="Lote en modo consulta"
+            message="Este lote ya fue cerrado operativamente. Puedes validar su detalle, pero no modificar pedidos, guias o paqueteria desde esta vista."
+          />
+        )}
 
-              <form onSubmit={escanearPedido} className="mt-5 space-y-4">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Pedido / Código de barras
-                </label>
+        <div
+          className={`grid min-h-0 flex-1 gap-5 overflow-hidden ${
+            soloLectura ? "" : "xl:grid-cols-[380px_minmax(0,1fr)]"
+          }`}
+        >
+          {!soloLectura && (
+            <div className="min-w-[360px] space-y-5 overflow-auto pr-1">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <h3 className="text-lg font-bold text-[#071f3a]">
+                  Escaneo de pedidos
+                </h3>
 
-                <div className="flex gap-2">
-                  <input
-                    ref={inputRef}
-                    value={pedidoEscaneado}
-                    onChange={(e) => setPedidoEscaneado(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-semibold outline-none focus:border-[#d5b15f]"
-                    placeholder="Escanear pedido..."
-                  />
+                <p className="mt-1 text-sm text-slate-500">
+                  Escanea el codigo de barras y presiona Enter.
+                </p>
+
+                <form onSubmit={escanearPedido} className="mt-5 space-y-4">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Pedido / Codigo de barras
+                  </label>
+
+                  <div className="flex gap-2">
+                    <input
+                      ref={inputRef}
+                      value={pedidoEscaneado}
+                      onChange={(e) => setPedidoEscaneado(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-semibold outline-none focus:border-[#d5b15f]"
+                      placeholder="Escanear pedido..."
+                    />
+
+                    <button
+                      type="submit"
+                      className="inline-flex items-center gap-2 rounded-2xl bg-[#d5b15f] px-5 py-3 text-sm font-bold text-[#071f3a] transition hover:bg-[#c7a04b]"
+                    >
+                      <ScanLine className="h-5 w-5" />
+                      Agregar
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <h3 className="text-lg font-bold text-[#071f3a]">
+                  Asignacion rapida por lote
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Aplica guia y/o paqueteria a todos los pedidos pendientes del lote.
+                </p>
+
+                <form onSubmit={asignarGuiaRapida} className="mt-5 space-y-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">
+                      Guia
+                    </label>
+
+                    <input
+                      value={guiaLote}
+                      onChange={(e) => {
+                        const valor = e.target.value.toUpperCase();
+                        setGuiaLote(valor);
+
+                        const detectada = detectarPaqueteriaPorGuia(valor);
+                        if (detectada !== "Pendiente") {
+                          setPaqueteriaLote(detectada);
+                        }
+                      }}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm uppercase outline-none focus:border-[#d5b15f]"
+                      placeholder="Captura guia si aplica"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">
+                      Paqueteria / canal
+                    </label>
+
+                    <select
+                      value={paqueteriaLote}
+                      onChange={(e) => setPaqueteriaLote(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d5b15f]"
+                    >
+                      {PAQUETERIAS_ECOM.map((paqueteria) => (
+                        <option key={paqueteria} value={paqueteria}>
+                          {paqueteria}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={sobrescribir}
+                      onChange={(e) => setSobrescribir(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                    Sobrescribir pedidos que ya tengan guia o paqueteria
+                  </label>
 
                   <button
                     type="submit"
-                    className="inline-flex items-center gap-2 rounded-2xl bg-[#d5b15f] px-5 py-3 text-sm font-bold text-[#071f3a] transition hover:bg-[#c7a04b]"
+                    className="w-full rounded-2xl bg-[#071f3a] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#0a2a4d]"
                   >
-                    <ScanLine className="h-5 w-5" />
-                    Agregar
+                    Aplicar al lote
                   </button>
-                </div>
-              </form>
+                </form>
+              </div>
+
+              <div className="rounded-2xl border border-[#d5b15f]/40 bg-[#071f3a] p-4 text-white">
+                <div className="text-sm font-bold">Deteccion automatica</div>
+                <p className="mt-1 text-sm text-slate-300">
+                  Al capturar una guia, SILOGEC detecta la paqueteria automaticamente.
+                </p>
+              </div>
             </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <h3 className="text-lg font-bold text-[#071f3a]">
-                Asignación rápida por lote
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Aplica guía y/o paquetería a todos los pedidos pendientes del
-                lote.
-              </p>
-
-              <form onSubmit={asignarGuiaRapida} className="mt-5 space-y-4">
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-slate-700">
-                    Guía
-                  </label>
-
-                  <input
-                    value={guiaLote}
-                    onChange={(e) => {
-                      const valor = e.target.value.toUpperCase();
-                      setGuiaLote(valor);
-
-                      const detectada = detectarPaqueteriaPorGuia(valor);
-                      if (detectada !== "Pendiente") {
-                        setPaqueteriaLote(detectada);
-                      }
-                    }}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm uppercase outline-none focus:border-[#d5b15f]"
-                    placeholder="Captura guía si aplica"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-slate-700">
-                    Paquetería / canal
-                  </label>
-
-                  <select
-                    value={paqueteriaLote}
-                    onChange={(e) => setPaqueteriaLote(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d5b15f]"
-                  >
-                    {PAQUETERIAS_ECOM.map((paqueteria) => (
-                      <option key={paqueteria} value={paqueteria}>
-                        {paqueteria}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={sobrescribir}
-                    onChange={(e) => setSobrescribir(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  Sobrescribir pedidos que ya tengan guía o paquetería
-                </label>
-
-                <button
-                  type="submit"
-                  className="w-full rounded-2xl bg-[#071f3a] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#0a2a4d]"
-                >
-                  Aplicar al lote
-                </button>
-              </form>
-            </div>
-
-            <div className="rounded-2xl border border-[#d5b15f]/40 bg-[#071f3a] p-4 text-white">
-              <div className="text-sm font-bold">Detección automática</div>
-              <p className="mt-1 text-sm text-slate-300">
-                Al capturar una guía, SILOGEC detecta la paquetería
-                automáticamente. Si no logra identificarla, puedes seleccionarla
-                manualmente.
-              </p>
-            </div>
-          </div>
+          )}
 
           <div className="min-h-0 min-w-0 rounded-2xl border border-slate-200 bg-white p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -399,16 +414,16 @@ export default function ModalEscaneoLote({
             </div>
 
             <div className="max-h-[540px] overflow-auto rounded-2xl border border-slate-200">
-              <table className="w-full min-w-[1050px] text-left text-sm">
+              <table className="w-full min-w-[1180px] text-left text-sm">
                 <thead className="sticky top-0 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-4 py-3">#</th>
-                    <th className="px-4 py-3">Pedido</th>
-                    <th className="px-4 py-3">Guía rápida</th>
-                    <th className="px-4 py-3">Paquetería / canal</th>
-                    <th className="px-4 py-3">Estatus</th>
-                    <th className="px-4 py-3">Hora</th>
-                    <th className="px-4 py-3">Acción</th>
+                    <th className="w-[60px] px-4 py-3">#</th>
+                    <th className="w-[230px] px-4 py-3">Pedido</th>
+                    <th className="w-[260px] px-4 py-3">Guia rapida</th>
+                    <th className="w-[210px] px-4 py-3">Paqueteria / canal</th>
+                    <th className="w-[160px] px-4 py-3">Estatus</th>
+                    <th className="w-[130px] px-4 py-3">Hora</th>
+                    <th className="w-[130px] px-4 py-3 text-right">Accion</th>
                   </tr>
                 </thead>
 
@@ -419,7 +434,7 @@ export default function ModalEscaneoLote({
                         colSpan="7"
                         className="px-4 py-8 text-center text-sm text-slate-500"
                       >
-                        Aún no hay pedidos escaneados.
+                        Aun no hay pedidos escaneados.
                       </td>
                     </tr>
                   ) : (
@@ -429,22 +444,29 @@ export default function ModalEscaneoLote({
                           {index + 1}
                         </td>
 
-                        <td className="px-4 py-3 font-semibold text-[#071f3a]">
-                          {pedido.pedido}
+                        <td className="px-4 py-3">
+                          <div className="min-w-[200px] break-words font-semibold text-[#071f3a]">
+                            {pedido.pedido}
+                          </div>
                         </td>
 
                         <td className="px-4 py-3">
                           <input
                             value={
-                              pedido.guia === "SIN GUÍA"
+                              pedido.guia === "SIN GUIA" || pedido.guia === "SIN GUÃA"
                                 ? ""
                                 : pedido.guia || ""
                             }
                             onChange={(e) =>
                               actualizarGuiaPedido(pedido, e.target.value)
                             }
-                            className="w-56 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold uppercase outline-none focus:border-[#d5b15f]"
-                            placeholder="Captura guía"
+                            disabled={soloLectura}
+                            className={`w-64 rounded-xl border px-3 py-2 text-xs font-semibold uppercase outline-none ${
+                              soloLectura
+                                ? "border-slate-200 bg-slate-50 text-slate-600"
+                                : "border-slate-200 focus:border-[#d5b15f]"
+                            }`}
+                            placeholder="Captura guia"
                           />
                         </td>
 
@@ -457,11 +479,14 @@ export default function ModalEscaneoLote({
                                 e.target.value
                               )
                             }
+                            disabled={soloLectura}
                             className={`rounded-xl border px-3 py-2 text-xs font-semibold outline-none ${
-                              pedido.paqueteria &&
-                              pedido.paqueteria !== "Pendiente"
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                : "border-slate-200 bg-slate-50 text-slate-500"
+                              soloLectura
+                                ? "border-slate-200 bg-slate-50 text-slate-600"
+                                : pedido.paqueteria &&
+                                  pedido.paqueteria !== "Pendiente"
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border-slate-200 bg-slate-50 text-slate-500"
                             }`}
                           >
                             {PAQUETERIAS_ECOM.map((paqueteria) => (
@@ -472,22 +497,34 @@ export default function ModalEscaneoLote({
                           </select>
                         </td>
 
-                        <td className="px-4 py-3 text-slate-600">
-                          {pedido.estatus}
+                        <td className="px-4 py-3">
+                          <span
+                            className={`${obtenerClaseEstatus(
+                              pedido.estatus
+                            )} inline-flex min-w-[120px] items-center justify-center`}
+                          >
+                            {pedido.estatus}
+                          </span>
                         </td>
 
                         <td className="px-4 py-3 text-slate-600">
                           {pedido.horaIngreso}
                         </td>
 
-                        <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => onEliminarPedido(pedido)}
-                            className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
-                          >
-                            <Trash2 className="inline h-3.5 w-3.5" /> Quitar
-                          </button>
+                        <td className="px-4 py-3 text-right">
+                          {soloLectura ? (
+                            <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                              Consulta
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => onEliminarPedido(pedido)}
+                              className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
+                            >
+                              <Trash2 className="inline h-3.5 w-3.5" /> Quitar
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -496,6 +533,7 @@ export default function ModalEscaneoLote({
               </table>
             </div>
           </div>
+        </div>
       </div>
     </ModalShell>
   );
