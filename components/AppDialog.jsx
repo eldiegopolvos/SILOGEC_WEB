@@ -53,13 +53,13 @@ export default function AppDialog({ dialog, onCancel, onConfirm }) {
   const isConfirm = dialog.kind === "confirm";
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#071f3a]/75 px-4 py-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#071f3a]/75 px-4 py-6 backdrop-blur-sm">
       <div
-        className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl shadow-slate-950/30"
+        className="mx-auto flex max-h-[calc(100vh-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl shadow-slate-950/30"
         role="dialog"
         aria-modal="true"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/90 px-6 py-5">
+        <div className="shrink-0 flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/90 px-6 py-5">
           <div className="flex min-w-0 items-start gap-4">
             <div
               className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${config.iconWrap}`}
@@ -87,7 +87,7 @@ export default function AppDialog({ dialog, onCancel, onConfirm }) {
           </button>
         </div>
 
-        <div className="space-y-4 px-6 py-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
           {lines.length > 0 && (
             <div className="space-y-2 text-sm leading-6 text-slate-600">
               {lines.map((line) => (
@@ -101,7 +101,7 @@ export default function AppDialog({ dialog, onCancel, onConfirm }) {
               {details.map((item) => (
                 <div
                   key={`${item.label}-${item.value}`}
-                  className="grid grid-cols-[150px_minmax(0,1fr)] gap-3 px-4 py-3 text-sm"
+                  className="grid gap-1 px-4 py-3 text-sm sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-3"
                 >
                   <dt className="font-semibold text-slate-500">{item.label}</dt>
                   <dd className="min-w-0 break-words font-semibold text-[#071f3a]">
@@ -113,7 +113,7 @@ export default function AppDialog({ dialog, onCancel, onConfirm }) {
           )}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-6 py-4 sm:flex-row sm:justify-end">
+        <div className="shrink-0 flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-6 py-4 sm:flex-row sm:justify-end">
           {isConfirm && (
             <button
               type="button"
