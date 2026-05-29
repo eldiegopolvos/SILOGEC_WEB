@@ -1,24 +1,18 @@
 import SimpleTable from "../../../components/SimpleTable";
-import { ESTATUS_LOTE } from "../constants";
+import { ESTATUS_LOTE, ESTATUS_LOTE_ECOM } from "../constants";
 
 const claseEstatusFallback = (estatus = "") => {
   const estatusNormalizado = String(estatus || "").trim().toUpperCase();
 
   const clases = {
-    CREADO: "rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700",
+    CREADO:
+      "rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700",
     "LOTE CERRADO":
       "rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700",
     ENVIADO:
       "rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700",
     CANCELADO:
       "rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700",
-
-    RECIBIDO:
-      "rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700",
-    "EN PROCESO":
-      "rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700",
-    TERMINADO:
-      "rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700",
   };
 
   return (
@@ -35,11 +29,6 @@ function EcommerceLotesTable({
   onAbrirLote = () => {},
   onDarSalida = () => {},
 }) {
-  const listaEstatusLote =
-    Array.isArray(estatusLote) && estatusLote.length > 0
-      ? estatusLote
-      : ESTATUS_LOTE;
-
   const resolverClaseEstatus =
     typeof obtenerClaseEstatus === "function"
       ? obtenerClaseEstatus
@@ -57,9 +46,19 @@ function EcommerceLotesTable({
             {row.lote || row.folioLote || "-"}
           </div>
           <div className="mt-1 text-xs font-medium text-slate-500">
-            Creado {row.fechaCreacionLote || row.fechaIngreso || "-"} ·{" "}
-            {row.horaCreacionLote || row.horaIngreso || "-"}
+            Creado {row.fechaCreacionLote || "-"} Â·{" "}
+            {row.horaCreacionLote || "-"}
           </div>
+          {row.fechaCierreLote && (
+            <div className="mt-1 text-xs font-medium text-emerald-700">
+              Cerrado {row.fechaCierreLote} Â· {row.horaCierreLote || "-"}
+            </div>
+          )}
+          {row.fechaEnvioLote && (
+            <div className="mt-1 text-xs font-medium text-indigo-700">
+              Enviado {row.fechaEnvioLote} Â· {row.horaEnvioLote || "-"}
+            </div>
+          )}
         </div>
       ),
     },
@@ -92,62 +91,68 @@ function EcommerceLotesTable({
     {
       key: "responsable",
       label: "Responsable",
-      render: (row) => row.responsable || row.responsableLote || "-",
+      render: (row) => row.responsableLote || row.responsable || "-",
     },
     {
       key: "estatus",
       label: "Estatus",
       render: (row) => {
-        const estatusActual = row.estatus || "CREADO";
+        const estatusActual = row.estatus || ESTATUS_LOTE_ECOM.CREADO;
 
         return (
-          <select
-            value={estatusActual}
-            onChange={(e) => onCambiarEstatus(row, e.target.value)}
-            className={resolverClaseEstatus(estatusActual)}
-          >
-            {listaEstatusLote.map((estatus) => (
-              <option key={estatus} value={estatus}>
-                {estatus}
-              </option>
-            ))}
-          </select>
+          <span className={`${resolverClaseEstatus(estatusActual)} inline-flex min-w-[120px] items-center justify-center`}>
+            {estatusActual}
+          </span>
         );
       },
     },
     {
-      key: "fechaIngreso",
-      label: "Fecha ingreso",
-      render: (row) => row.fechaCreacionLote || row.fechaIngreso || "-",
+      key: "fechaCreacionLote",
+      label: "Fecha creaciÃ³n",
+      render: (row) => row.fechaCreacionLote || "-",
     },
     {
-      key: "horaIngreso",
-      label: "Hora ingreso",
-      render: (row) => row.horaCreacionLote || row.horaIngreso || "-",
+      key: "horaCreacionLote",
+      label: "Hora creaciÃ³n",
+      render: (row) => row.horaCreacionLote || "-",
     },
     {
       key: "acciones",
       label: "Acciones",
       width: "230px",
-      render: (row) => (
-        <div className="flex min-w-[210px] flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => onAbrirLote(row)}
-            className="rounded-xl bg-[#071f3a] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#0a2a4d]"
-          >
-            Abrir lote
-          </button>
+      render: (row) => {
+        const loteEnviado = row.estatus === ESTATUS_LOTE_ECOM.ENVIADO;
+        const loteCancelado = row.estatus === ESTATUS_LOTE_ECOM.CANCELADO;
+        const esSoloConsulta =
+          row.estatus === ESTATUS_LOTE_ECOM.LOTE_CERRADO ||
+          loteEnviado ||
+          loteCancelado;
 
-          <button
-            type="button"
-            onClick={() => onDarSalida(row)}
-            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            Dar salida
-          </button>
-        </div>
-      ),
+        return (
+          <div className="flex min-w-[210px] flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => onAbrirLote(row)}
+              className="rounded-xl bg-[#071f3a] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#0a2a4d]"
+            >
+              {esSoloConsulta ? "Ver detalle" : "Abrir lote"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onDarSalida(row)}
+              disabled={loteEnviado || loteCancelado}
+              className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                loteEnviado || loteCancelado
+                  ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                  : "border-slate-200 text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              Dar salida
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -156,7 +161,7 @@ function EcommerceLotesTable({
       columns={columnas}
       rows={lotes}
       minWidth="1120px"
-      emptyMessage="Aún no hay lotes creados. Crea un lote para iniciar la recepción."
+      emptyMessage="AÃºn no hay lotes creados. Crea un lote para iniciar la recepciÃ³n."
     />
   );
 }
