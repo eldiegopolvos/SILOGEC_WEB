@@ -12,6 +12,7 @@ import {
   RESPONSABLES_ECOM,
   TIPOS_ENVIO_ECOM,
 } from "../constants";
+import { detectarPaqueteriaPorGuia } from "../utils/ecommerceUtils";
 
 const estadoInicial = {
   pedido: "",
@@ -58,8 +59,7 @@ const sanitizarEstatus = (estatus = "") => {
   return ESTATUS_ECOM.includes(estatus) ? estatus : "RECIBIDO";
 };
 
-const esStorePickupPorGuia = (pedido = "", guia = "") => {
-  const pedidoNormalizado = normalizarReferencia(pedido);
+const esStorePickupPorGuia = (pedido = "", guia = "", plataforma = "") => {
   const guiaNormalizada = normalizarReferencia(guia);
 
   if (!guiaNormalizada) return false;
@@ -67,7 +67,7 @@ const esStorePickupPorGuia = (pedido = "", guia = "") => {
   return (
     guiaNormalizada ===
       normalizarReferencia(GUIAS_ESPECIALES_ECOM.STORE_PICKUP) ||
-    (pedidoNormalizado && pedidoNormalizado === guiaNormalizada)
+    detectarPaqueteriaPorGuia(guia, { pedido, plataforma }) === "Store Pickup"
   );
 };
 
@@ -90,7 +90,7 @@ export default function ModalNuevoPedido({
       setForm({
         pedido: pedidoEditar.pedido || "",
         plataforma: sanitizarPlataforma(pedidoEditar.plataforma),
-        guia: pedidoEditar.guia === "SIN GUÍA" ? "" : pedidoEditar.guia || "",
+        guia: pedidoEditar.guia === "SIN GUÃA" ? "" : pedidoEditar.guia || "",
         paqueteria: sanitizarPaqueteria(pedidoEditar.paqueteria),
         responsable: pedidoEditar.responsable || "Sandra Barrera",
         estatus: sanitizarEstatus(pedidoEditar.estatus),
@@ -113,6 +113,18 @@ export default function ModalNuevoPedido({
 
       if (campo === "plataforma") {
         siguiente.plataforma = sanitizarPlataforma(valor);
+
+        if (
+          esStorePickupPorGuia(
+            siguiente.pedido,
+            siguiente.guia,
+            siguiente.plataforma
+          )
+        ) {
+          siguiente.paqueteria = "Store Pickup";
+        } else if (prev.paqueteria === "Store Pickup") {
+          siguiente.paqueteria = "Pendiente";
+        }
       }
 
       if (campo === "paqueteria") {
@@ -125,14 +137,21 @@ export default function ModalNuevoPedido({
       }
 
       if (campo === "pedido") {
-        if (esStorePickupPorGuia(valor, siguiente.guia)) {
+        if (esStorePickupPorGuia(valor, siguiente.guia, siguiente.plataforma)) {
           siguiente.paqueteria = "Store Pickup";
         }
       }
 
       if (campo === "guia") {
-        if (esStorePickupPorGuia(siguiente.pedido, valor)) {
+        const paqueteriaDetectada = detectarPaqueteriaPorGuia(valor, {
+          pedido: siguiente.pedido,
+          plataforma: siguiente.plataforma,
+        });
+
+        if (esStorePickupPorGuia(siguiente.pedido, valor, siguiente.plataforma)) {
           siguiente.paqueteria = "Store Pickup";
+        } else if (paqueteriaDetectada !== "Pendiente") {
+          siguiente.paqueteria = paqueteriaDetectada;
         } else if (prev.paqueteria === "Store Pickup") {
           siguiente.paqueteria = "Pendiente";
         }
@@ -156,16 +175,20 @@ export default function ModalNuevoPedido({
       setAlerta({
         tone: "warning",
         title: "Pedido requerido",
-        message: "Captura el número de pedido antes de guardar.",
+        message: "Captura el nÃºmero de pedido antes de guardar.",
       });
       return;
     }
 
-    const esStorePickup = esStorePickupPorGuia(pedidoLimpio, guiaLimpia);
+    const esStorePickup = esStorePickupPorGuia(
+      pedidoLimpio,
+      guiaLimpia,
+      form.plataforma
+    );
 
     const guiaFinal =
       guiaLimpia ||
-      (form.paqueteria === "Store Pickup" ? pedidoLimpio : "SIN GUÍA");
+      (form.paqueteria === "Store Pickup" ? pedidoLimpio : "SIN GUÃA");
 
     const paqueteriaFinal =
       esStorePickup || form.paqueteria === "Store Pickup"
@@ -197,7 +220,7 @@ export default function ModalNuevoPedido({
     if (resultado === false || resultado?.ok === false) {
       const detalleTexto = resultado?.details
         ?.map((item) => `${item.label}: ${item.value || "-"}`)
-        .join(" · ");
+        .join(" Â· ");
 
       setAlerta({
         tone: "error",
@@ -206,7 +229,7 @@ export default function ModalNuevoPedido({
           [resultado?.mensaje, detalleTexto]
             .filter(Boolean)
             .join(" ") ||
-          "Valida la información capturada e intenta nuevamente.",
+          "Valida la informaciÃ³n capturada e intenta nuevamente.",
       });
       return;
     }
@@ -218,7 +241,7 @@ export default function ModalNuevoPedido({
   return (
     <ModalShell
       abierto={abierto}
-      eyebrow="Comercio Electrónico"
+      eyebrow="Comercio ElectrÃ³nico"
       title={modoEdicion ? "Editar pedido E-COM" : "Nuevo pedido E-COM"}
       description={
         modoEdicion
@@ -286,20 +309,20 @@ export default function ModalNuevoPedido({
 
             <div>
               <label className="mb-1 block text-sm font-semibold text-slate-700">
-                Guía
+                GuÃ­a
               </label>
 
               <input
                 value={form.guia}
                 onChange={(e) => actualizarCampo("guia", e.target.value)}
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm uppercase outline-none focus:border-[#d5b15f]"
-                placeholder="Si guía = pedido, será Store Pickup"
+                placeholder="Si guÃ­a = pedido, serÃ¡ Store Pickup"
               />
             </div>
 
             <div>
               <label className="mb-1 block text-sm font-semibold text-slate-700">
-                Paquetería / canal
+                PaqueterÃ­a / canal
               </label>
 
               <select
@@ -318,7 +341,7 @@ export default function ModalNuevoPedido({
                 <InlineAlert
                   tone="success"
                   title="Store Pickup detectado"
-                  message="Se considera entrega a sucursal / valija, no paquetería externa."
+                  message="Se considera entrega a sucursal / valija, no paqueterÃ­a externa."
                   className="mt-3"
                 />
               )}
@@ -360,8 +383,8 @@ export default function ModalNuevoPedido({
               </select>
 
               <p className="mt-2 text-xs leading-5 text-slate-500">
-                Fuera de ventana ya no se captura como estatus visible; será una
-                condición interna del sistema.
+                Fuera de ventana ya no se captura como estatus visible; serÃ¡ una
+                condiciÃ³n interna del sistema.
               </p>
             </div>
           </div>
