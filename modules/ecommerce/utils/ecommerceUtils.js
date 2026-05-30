@@ -36,6 +36,18 @@ export const normalizarTextoPedido = (valor) =>
 export const normalizarGuia = (valor) =>
   String(valor || "").trim().toUpperCase().replace(/\s+/g, "");
 
+const PEDIDOS_DEMO_PREDETERMINADOS = new Set([
+  "204231A2491",
+  "ML-88271645",
+  "MAG-202605-0182",
+]);
+
+export const esPedidoDemoPredeterminado = (pedido = {}) =>
+  PEDIDOS_DEMO_PREDETERMINADOS.has(normalizarTextoPedido(pedido.pedido));
+
+export const removerPedidosDemoPredeterminados = (pedidos = []) =>
+  pedidos.filter((pedido) => !esPedidoDemoPredeterminado(pedido));
+
 export const estaDentroVentanaRecepcionECOM = () => {
   const ahora = new Date();
   const minutosActuales = ahora.getHours() * 60 + ahora.getMinutes();
@@ -73,15 +85,27 @@ export const obtenerSiguienteIdLote = () => {
   return siguiente;
 };
 
-export const detectarPaqueteriaPorGuia = (guia) => {
+export const detectarPaqueteriaPorGuia = (
+  guia,
+  { plataforma = "", pedido = "" } = {}
+) => {
   const valor = normalizarGuia(guia);
   if (!valor) return "Pendiente";
 
-  if (valor.startsWith("1Z") && valor.length >= 16) return "UPS";
-  if (/^46\d{9}$/.test(valor)) return "Mercado Libre";
+  const plataformaNormalizada = normalizarTextoPedido(plataforma);
+  if (
+    valor === "STOREPICKUP" ||
+    (plataformaNormalizada === "MAGENTO" && valor.startsWith("900"))
+  ) {
+    return "Store Pickup";
+  }
+
+  if (/^1Z[A-Z0-9]{16}$/.test(valor)) return "UPS";
+  if (/^47\d{8}$/.test(valor)) return "Mercado Libre";
   if (/^\d{10}$/.test(valor)) return "DHL";
   if (/^\d{22}$/.test(valor)) return "Estafeta";
-  if (/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(valor)) return "Paquetexpress";
+  if (/^\d{12}$/.test(valor)) return "FedEx";
+  if (/^(?=.*[A-Z])[A-Z0-9]{12}$/.test(valor)) return "Paquetexpress";
 
   return "Pendiente";
 };
@@ -117,6 +141,8 @@ export const normalizarLotes = (lotes) =>
 
 export const obtenerClaseEstatus = (estatus = "") => {
   const estatusNormalizado = String(estatus || "").trim().toUpperCase();
+  const base =
+    "rounded-xl px-3 py-2 text-xs font-semibold uppercase leading-none";
 
   const clases = {
     RECIBIDO: "bg-sky-50 text-sky-700 border border-sky-200",
@@ -133,10 +159,10 @@ export const obtenerClaseEstatus = (estatus = "") => {
     REENVIO: "bg-cyan-50 text-cyan-700 border border-cyan-200",
   };
 
-  return (
+  return `${base} ${
     clases[estatusNormalizado] ||
     "bg-slate-50 text-slate-600 border border-slate-200"
-  );
+  }`;
 };
 
 export const pedidoTieneGuiaValida = (pedido) =>
