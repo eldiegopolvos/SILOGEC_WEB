@@ -33,11 +33,7 @@ export const moduleCards = [
   { title: "Rastreo", description: "Consulta masiva, actualización de estatus y alertas por paquetería.", tags: ["Pakke", "Pak2Go", "UPS"] },
 ];
 
-export const ecommercePedidos = [
-  { pedido: "204231A2491", plataforma: "Liverpool", guia: "1Z999AA10123456784", paqueteria: "UPS", responsable: "Sandra Barrera", estatus: "TERMINADO", horaIngreso: "09:42" },
-  { pedido: "ML-88271645", plataforma: "Mercado Libre", guia: "46392817465", paqueteria: "Mercado Libre", responsable: "Sandra Barrera", estatus: "EN PROCESO", horaIngreso: "14:18" },
-  { pedido: "MAG-202605-0182", plataforma: "Magento", guia: "SIN GUÍA", paqueteria: "Pendiente", responsable: "Axel Cuevas", estatus: "PENDIENTE DE TRABAJAR", horaIngreso: "16:55" },
-];
+export const ecommercePedidos = [];
 
 export const recepciones = [
   { guia: "1Z8756XW9081716253", origen: "UPS", paquetes: 4, usuario: "Jessica Miranda", estatus: "PENDIENTE POR ENTREGAR" },
