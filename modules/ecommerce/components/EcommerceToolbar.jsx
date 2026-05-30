@@ -1,18 +1,33 @@
-import { PackagePlus, Trash2, UploadCloud } from "lucide-react";
+import { Download, PackagePlus, Trash2, UploadCloud } from "lucide-react";
 
 export default function EcommerceToolbar({
   vistaActiva,
   setVistaActiva,
+  pedidosCount = 0,
   pedidosSinLote = 0,
+  filtroPedidos = "todos",
+  setFiltroPedidos = () => {},
+  conteoFiltrosPedidos = {
+    todos: 0,
+    sinLote: 0,
+    conLote: 0,
+  },
   lotesCount = 0,
   onLimpiarTemporal,
   onNuevoLote,
   onNuevoPedido,
+  onExportar,
 }) {
   const descripcion =
     vistaActiva === "lotes"
       ? "Recepción por lote, pedidos vinculados, estatus automático y salida por recolección."
-      : "Bandeja de pedidos manuales que aún no pertenecen a un lote.";
+      : "Vista global de pedidos capturados, con o sin lote, lista para consulta y descarga.";
+
+  const filtrosPedidos = [
+    { id: "todos", label: "Todos", count: conteoFiltrosPedidos.todos },
+    { id: "sin-lote", label: "Sin lote", count: conteoFiltrosPedidos.sinLote },
+    { id: "con-lote", label: "Con lote", count: conteoFiltrosPedidos.conLote },
+  ];
 
   return (
     <div className="mb-5 space-y-4">
@@ -50,9 +65,9 @@ export default function EcommerceToolbar({
                   : "text-slate-700 hover:bg-white"
               }`}
             >
-              Pedidos sin lote
+              Pedidos
               <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs">
-                {pedidosSinLote}
+                {pedidosCount || pedidosSinLote}
               </span>
             </button>
           </div>
@@ -69,16 +84,46 @@ export default function EcommerceToolbar({
       </div>
 
       <div className="flex justify-end">
-        {vistaActiva === "lotes" ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {vistaActiva === "pedidos" && (
+            <div className="mr-1 inline-flex rounded-xl border border-slate-200 bg-white p-1">
+              {filtrosPedidos.map((filtro) => (
+                <button
+                  key={filtro.id}
+                  type="button"
+                  onClick={() => setFiltroPedidos(filtro.id)}
+                  className={`rounded-lg px-3 py-2 text-xs font-bold transition ${
+                    filtroPedidos === filtro.id
+                      ? "bg-[#071f3a] text-white"
+                      : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {filtro.label}
+                  <span className="ml-1 opacity-70">{filtro.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           <button
             type="button"
-            onClick={onNuevoLote}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#d5b15f] px-4 py-2.5 text-sm font-bold text-[#071f3a] transition hover:bg-[#c7a04b]"
+            onClick={onExportar}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            <PackagePlus className="h-4 w-4" />
-            Nuevo lote
+            <Download className="h-4 w-4" />
+            Exportar CSV
           </button>
-        ) : (
+
+          {vistaActiva === "lotes" ? (
+            <button
+              type="button"
+              onClick={onNuevoLote}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#d5b15f] px-4 py-2.5 text-sm font-bold text-[#071f3a] transition hover:bg-[#c7a04b]"
+            >
+              <PackagePlus className="h-4 w-4" />
+              Nuevo lote
+            </button>
+          ) : (
           <button
             type="button"
             onClick={onNuevoPedido}
@@ -87,7 +132,8 @@ export default function EcommerceToolbar({
             <UploadCloud className="h-4 w-4" />
             Pedido manual
           </button>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
