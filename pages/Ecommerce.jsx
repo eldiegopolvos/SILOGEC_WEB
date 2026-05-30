@@ -5,6 +5,7 @@ import EcommercePedidosTable from "../modules/ecommerce/components/EcommercePedi
 import ModalEscaneoLote from "../modules/ecommerce/components/ModalEscaneoLote";
 import ModalNuevoLote from "../modules/ecommerce/components/ModalNuevoLote";
 import ModalNuevoPedido from "../modules/ecommerce/components/ModalNuevoPedido";
+import { useMemo, useState } from "react";
 
 import { ESTATUS_ECOM, ESTATUS_LOTE } from "../modules/ecommerce/constants";
 import { useEcommerceController } from "../modules/ecommerce/hooks/useEcommerceController";
@@ -12,6 +13,7 @@ import { useAppDialog } from "../hooks/useAppDialog.jsx";
 
 export default function Ecommerce() {
   const { Dialog, confirm, notify } = useAppDialog();
+  const [filtroPedidos, setFiltroPedidos] = useState("todos");
   const {
     vistaActiva,
     setVistaActiva,
@@ -23,6 +25,7 @@ export default function Ecommerce() {
     modalEscaneoAbierto,
     pedidoEditando,
     loteSeleccionado,
+    historialLoteSeleccionado,
     menuAbiertoId,
     setMenuAbiertoId,
     setModalLoteAbierto,
@@ -48,9 +51,88 @@ export default function Ecommerce() {
     pedidosDelLoteSeleccionado,
   } = useEcommerceController({ confirm, notify });
 
-  const pedidosSinLote = pedidos.filter(
-    (pedido) => !pedido.lote || pedido.lote === "SIN LOTE"
+  const pedidosSinLote = useMemo(
+    () => pedidos.filter((pedido) => !pedido.lote || pedido.lote === "SIN LOTE"),
+    [pedidos]
   );
+
+  const pedidosConLote = useMemo(
+    () => pedidos.filter((pedido) => pedido.lote && pedido.lote !== "SIN LOTE"),
+    [pedidos]
+  );
+
+  const pedidosFiltrados = useMemo(() => {
+    if (filtroPedidos === "sin-lote") return pedidosSinLote;
+    if (filtroPedidos === "con-lote") return pedidosConLote;
+    return pedidos;
+  }, [filtroPedidos, pedidos, pedidosConLote, pedidosSinLote]);
+
+  const conteoFiltrosPedidos = useMemo(
+    () => ({
+      todos: pedidos.length,
+      sinLote: pedidosSinLote.length,
+      conLote: pedidosConLote.length,
+    }),
+    [pedidos.length, pedidosConLote.length, pedidosSinLote.length]
+  );
+
+  const exportarVistaActual = () => {
+    const rows = vistaActiva === "lotes" ? lotes : pedidosFiltrados;
+
+    if (rows.length === 0) {
+      notify({
+        title: "Sin datos para exportar",
+        message: "La vista actual no tiene registros.",
+        tone: "info",
+      });
+      return;
+    }
+
+    const columnas =
+      vistaActiva === "lotes"
+        ? [
+            "lote",
+            "plataforma",
+            "estatus",
+            "piezasEsperadas",
+            "piezasEscaneadas",
+            "responsableLote",
+            "fechaCreacionLote",
+            "horaCreacionLote",
+            "fechaCierreLote",
+            "horaCierreLote",
+            "fechaEnvioLote",
+            "horaEnvioLote",
+          ]
+        : [
+            "pedido",
+            "plataforma",
+            "guia",
+            "paqueteria",
+            "estatus",
+            "lote",
+            "responsable",
+            "fechaIngreso",
+            "horaIngreso",
+          ];
+
+    const escapeCsv = (value) =>
+      `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const csv = [
+      columnas.join(","),
+      ...rows.map((row) => columnas.map((columna) => escapeCsv(row[columna])).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const vistaArchivo =
+      vistaActiva === "pedidos" ? `pedidos-${filtroPedidos}` : vistaActiva;
+    link.download = `silogec-${vistaArchivo}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <section className="space-y-6 px-5 py-6 lg:px-8">
@@ -60,11 +142,16 @@ export default function Ecommerce() {
         <EcommerceToolbar
           vistaActiva={vistaActiva}
           setVistaActiva={setVistaActiva}
+          pedidosCount={pedidos.length}
           pedidosSinLote={pedidosSinLote.length}
+          filtroPedidos={filtroPedidos}
+          setFiltroPedidos={setFiltroPedidos}
+          conteoFiltrosPedidos={conteoFiltrosPedidos}
           lotesCount={lotes.length}
           onLimpiarTemporal={limpiarTemporal}
           onNuevoLote={() => setModalLoteAbierto(true)}
           onNuevoPedido={abrirNuevoPedido}
+          onExportar={exportarVistaActual}
         />
 
         {vistaActiva === "lotes" ? (
@@ -76,9 +163,9 @@ export default function Ecommerce() {
             onAbrirLote={abrirEscaneoLote}
             onDarSalida={darSalidaLote}
           />
-     ) : (
+        ) : (
           <EcommercePedidosTable
-            pedidos={pedidosSinLote}
+            pedidos={pedidosFiltrados}
             estatusEcom={ESTATUS_ECOM}
             obtenerClaseEstatus={obtenerClaseEstatus}
             onCambiarEstatus={cambiarEstatusPedido}
@@ -88,6 +175,7 @@ export default function Ecommerce() {
             onVerDetalle={verDetallePedido}
             menuAbiertoId={menuAbiertoId}
             setMenuAbiertoId={setMenuAbiertoId}
+            emptyMessage="No hay pedidos para el filtro seleccionado."
           />
         )}
       </div>
@@ -109,6 +197,7 @@ export default function Ecommerce() {
         abierto={modalEscaneoAbierto}
         lote={loteSeleccionado}
         pedidosDelLote={pedidosDelLoteSeleccionado}
+        historialLote={historialLoteSeleccionado}
         onCerrar={cerrarEscaneoLote}
         onAgregarPedido={agregarPedidoAlLote}
         onEliminarPedido={eliminarPedidoDelLote}
