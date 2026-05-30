@@ -1,5 +1,5 @@
 import SimpleTable from "../../../components/SimpleTable";
-import { ESTATUS_ECOM } from "../constants";
+import { ESTATUS_PEDIDO_ECOM } from "../constants";
 import MenuAccionesPedido from "./MenuAccionesPedido";
 
 const claseEstatusFallback = (estatus = "") => {
@@ -8,18 +8,12 @@ const claseEstatusFallback = (estatus = "") => {
   const clases = {
     RECIBIDO:
       "rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700",
-    CREADO:
-      "rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700",
     "EN PROCESO":
       "rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700",
     TERMINADO:
       "rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700",
     ENVIADO:
       "rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700",
-    "FUERA DE VENTANA":
-      "rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700",
-    "FUERA DE VENTANA OPERATIVA":
-      "rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700",
     CANCELADO:
       "rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700",
     RETORNO:
@@ -36,7 +30,6 @@ const claseEstatusFallback = (estatus = "") => {
 
 function EcommercePedidosTable({
   pedidos = [],
-  estatusEcom = ESTATUS_ECOM,
   obtenerClaseEstatus,
   onCambiarEstatus = () => {},
   onEditarPedido = () => {},
@@ -45,12 +38,8 @@ function EcommercePedidosTable({
   onVerDetalle = () => {},
   menuAbiertoId = null,
   setMenuAbiertoId = () => {},
+  emptyMessage = "No hay pedidos para mostrar.",
 }) {
-  const listaEstatus =
-    Array.isArray(estatusEcom) && estatusEcom.length > 0
-      ? estatusEcom
-      : ESTATUS_ECOM;
-
   const resolverClaseEstatus =
     typeof obtenerClaseEstatus === "function"
       ? obtenerClaseEstatus
@@ -62,17 +51,27 @@ function EcommercePedidosTable({
       label: "Pedido",
       width: "280px",
       cellClassName: "align-top",
-      render: (row) => (
-        <div className="min-w-[250px]">
-          <div className="break-words text-base font-bold text-[#071f3a]">
-            {row.pedido || "-"}
-          </div>
+      render: (row) => {
+        const tieneLote = row.lote && row.lote !== "SIN LOTE";
 
-          <div className="mt-1 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">
-            {row.lote || "SIN LOTE"}
+        return (
+          <div className="min-w-[250px]">
+            <div className="break-words text-base font-bold text-[#071f3a]">
+              {row.pedido || "-"}
+            </div>
+
+            <div
+              className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                tieneLote
+                  ? "bg-sky-50 text-sky-700"
+                  : "bg-amber-50 text-amber-700"
+              }`}
+            >
+              {row.lote || "SIN LOTE"}
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: "plataforma",
@@ -82,23 +81,23 @@ function EcommercePedidosTable({
     },
     {
       key: "guia",
-      label: "Guía",
+      label: "Guia",
       width: "190px",
       render: (row) => (
         <span className="block min-w-[160px] break-words font-semibold text-slate-700">
-          {row.guia || "SIN GUÍA"}
+          {row.guia || "SIN GUIA"}
         </span>
       ),
     },
     {
       key: "paqueteria",
-      label: "Paquetería / canal",
+      label: "Paqueteria / canal",
       width: "170px",
       render: (row) => row.paqueteria || "Pendiente",
     },
     {
       key: "tipoEnvio",
-      label: "Tipo envío",
+      label: "Tipo envio",
       width: "170px",
       render: (row) => row.tipoEnvio || "SIN CLASIFICAR",
     },
@@ -113,30 +112,24 @@ function EcommercePedidosTable({
       label: "Estatus",
       width: "170px",
       render: (row) => {
-        const estatusActual = row.estatus || "RECIBIDO";
+        const estatusActual = row.estatus || ESTATUS_PEDIDO_ECOM.RECIBIDO;
 
         return (
-          <select
-            value={estatusActual}
-            onChange={(e) => onCambiarEstatus(row, e.target.value)}
-            className={resolverClaseEstatus(estatusActual)}
+          <span
+            className={`${resolverClaseEstatus(estatusActual)} inline-flex min-w-[120px] items-center justify-center`}
           >
-            {listaEstatus.map((estatus) => (
-              <option key={estatus} value={estatus}>
-                {estatus}
-              </option>
-            ))}
-          </select>
+            {estatusActual}
+          </span>
         );
       },
     },
     {
       key: "condicionIngreso",
-      label: "Condición",
+      label: "Condicion",
       width: "190px",
       render: (row) => (
         <span className="text-xs font-semibold text-slate-600">
-          {row.condicionIngreso || "SIN CONDICIÓN"}
+          {row.condicionIngreso || "SIN CONDICION"}
         </span>
       ),
     },
@@ -152,7 +145,7 @@ function EcommercePedidosTable({
               : "bg-emerald-50 text-emerald-700"
           }`}
         >
-          {row.noProcesadoMismoDia ? "SÍ" : "NO"}
+          {row.noProcesadoMismoDia ? "SI" : "NO"}
         </span>
       ),
     },
@@ -181,6 +174,7 @@ function EcommercePedidosTable({
           onDuplicarPedido={onDuplicarPedido}
           onEliminarPedidoTemporal={onEliminarPedidoTemporal}
           onVerDetalle={onVerDetalle}
+          onCambiarEstatus={onCambiarEstatus}
         />
       ),
     },
@@ -191,7 +185,7 @@ function EcommercePedidosTable({
       columns={columnas}
       rows={pedidos}
       minWidth="1380px"
-      emptyMessage="No hay pedidos sin lote. La operación principal se controla desde Lotes."
+      emptyMessage={emptyMessage}
     />
   );
 }
