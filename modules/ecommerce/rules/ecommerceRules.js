@@ -148,7 +148,7 @@ export function esFueraVentanaOperativa(hora) {
 }
 
 // ======================================================
-// CORTES DE RECOLECCIÓN
+// CORTES DE RECOLECCIÃ“N
 // ======================================================
 
 export function obtenerCorteRecoleccionAplicable(paqueteria = "") {
@@ -171,7 +171,7 @@ export function esPosteriorCorteRecoleccion(hora, paqueteria = "") {
 }
 
 // ======================================================
-// CLASIFICACIÓN OPERATIVA MAGENTO / STORE PICKUP / LOCAL
+// CLASIFICACIÃ“N OPERATIVA MAGENTO / STORE PICKUP / LOCAL
 // ======================================================
 
 export function esGuiaIgualPedido(pedido = "", guia = "") {
@@ -183,12 +183,13 @@ export function esGuiaIgualPedido(pedido = "", guia = "") {
   return pedidoNormalizado === guiaNormalizada;
 }
 
-export function esGuiaStorePickup(pedido = "", guia = "") {
+export function esGuiaStorePickup(pedido = "", guia = "", plataforma = "") {
   const guiaNormalizada = normalizarTexto(guia);
+  const plataformaNormalizada = normalizarTexto(plataforma);
 
   return (
     guiaNormalizada === normalizarTexto(GUIAS_ESPECIALES_ECOM.STORE_PICKUP) ||
-    esGuiaIgualPedido(pedido, guia)
+    (plataformaNormalizada === "MAGENTO" && guiaNormalizada.startsWith("900"))
   );
 }
 
@@ -221,12 +222,15 @@ export function resolverClasificacionEnvioEcom({
   const paqueteriaNormalizada = normalizarTexto(paqueteria);
   const guiaTextoNormalizado = normalizarTexto(guia);
   const guiaUtil =
-   guiaTextoNormalizado === "SIN GUIA" || guiaTextoNormalizado === "SIN GUÍA"
+   guiaTextoNormalizado === "SIN GUIA" || guiaTextoNormalizado === "SIN GUÃA"
      ? ""
      : guia;
 
-  // Regla: si la guía coincide con el pedido, es Store Pickup.
-  if (esGuiaStorePickup(pedido, guia) || esPaqueteriaStorePickup(paqueteria)) {
+  // Regla: si la guÃ­a coincide con el pedido, es Store Pickup.
+  if (
+    esGuiaStorePickup(pedido, guia, plataforma) ||
+    esPaqueteriaStorePickup(paqueteria)
+  ) {
     return {
       plataformaNormalizada,
       tipoEnvio: TIPOS_ENVIO_ECOM.STORE_PICKUP,
@@ -241,27 +245,10 @@ export function resolverClasificacionEnvioEcom({
     };
   }
 
-  // Preparado para flujo futuro: E-commerce local / mensajería interna.
-  // No se conectará todavía a página propia.
-  if (
-    esGuiaMarketplaceLocal(guia) ||
-    esPaqueteriaMensajeriaInterna(paqueteria)
-  ) {
-    return {
-      plataformaNormalizada,
-      tipoEnvio: TIPOS_ENVIO_ECOM.ECOMMERCE_LOCAL,
-      canalEntrega: CANALES_ENTREGA_ECOM.MENSAJERIA_INTERNA,
-      paqueteriaSugerida: "Mensajería Interna",
-      guiaSugerida: guiaUtil || GUIAS_ESPECIALES_ECOM.MARKETPLACE_LOCAL,
-      condicionOperativa:
-        CONDICIONES_OPERATIVAS_ECOM.ECOMMERCE_LOCAL_DETECTADO,
-      esStorePickup: false,
-      esEcommerceLocal: true,
-      esPaqueteriaExterna: false,
-    };
-  }
+  // E-commerce local / mensajerÃ­a interna queda fuera de este flujo.
+  // Se trabajarÃ¡ despuÃ©s en el mÃ³dulo de Incidencias o MensajerÃ­a Interna.
 
-  // Si tiene guía y no es caso especial, se considera foráneo / paquetería externa.
+  // Si tiene guÃ­a y no es caso especial, se considera forÃ¡neo / paqueterÃ­a externa.
   if (guiaUtil && paqueteriaNormalizada && paqueteriaNormalizada !== "PENDIENTE") {
     return {
       plataformaNormalizada,
@@ -290,7 +277,7 @@ export function resolverClasificacionEnvioEcom({
 }
 
 // ======================================================
-// CONDICIÓN DE INGRESO
+// CONDICIÃ“N DE INGRESO
 // ======================================================
 
 export function resolverCondicionIngreso({
@@ -321,7 +308,7 @@ export function resolverCondicionIngreso({
     };
   }
 
-  // Store Pickup no se mide con corte de recolección de paquetería externa.
+  // Store Pickup no se mide con corte de recolecciÃ³n de paqueterÃ­a externa.
   if (clasificacion.esStorePickup) {
     return {
       ...clasificacion,
@@ -334,7 +321,7 @@ export function resolverCondicionIngreso({
     };
   }
 
-  // E-commerce local queda clasificado, pero su operación completa será página futura.
+  // E-commerce local queda clasificado, pero su operaciÃ³n completa serÃ¡ pÃ¡gina futura.
   if (clasificacion.esEcommerceLocal) {
     const posteriorCorteGeneral =
       compararHoras(horaIngreso, HORA_CORTE_GENERAL_ECOM) === 1;
@@ -400,7 +387,7 @@ export function resolverEstatusInicialPedido({
     plataforma,
   });
 
-  // Fuera de ventana se queda como condición interna, no como estatus visible.
+  // Fuera de ventana se queda como condiciÃ³n interna, no como estatus visible.
   if (
     condicion.condicionIngreso ===
     CONDICIONES_OPERATIVAS_ECOM.FUERA_VENTANA_OPERATIVA
@@ -432,7 +419,7 @@ export function esEstatusManualProtegidoRegla(estatusPedido) {
 }
 
 // ======================================================
-// NO PROCESADO MISMO DÍA
+// NO PROCESADO MISMO DÃA
 // ======================================================
 
 export function resolverNoProcesadoMismoDia({
@@ -483,7 +470,7 @@ export function resolverNoProcesadoMismoDia({
     ecommerceLocalFlag ??
     condicionBase.tipoEnvio === TIPOS_ENVIO_ECOM.ECOMMERCE_LOCAL;
 
-  // Fuera de ventana no castiga al operador el mismo día.
+  // Fuera de ventana no castiga al operador el mismo dÃ­a.
   if (esFueraVentana) {
     return {
       noProcesadoMismoDia: false,
@@ -493,7 +480,7 @@ export function resolverNoProcesadoMismoDia({
     };
   }
 
-  // Store Pickup cuenta para E-commerce, pero no se evalúa con corte externo.
+  // Store Pickup cuenta para E-commerce, pero no se evalÃºa con corte externo.
   if (esStorePickup) {
     if (fechaFinTrabajo && esMismaFecha(fechaFinTrabajo, fechaIngreso)) {
       return {
@@ -518,7 +505,7 @@ export function resolverNoProcesadoMismoDia({
     }
   }
 
-  // E-commerce local queda preparado. Su detalle operativo será flujo futuro.
+  // E-commerce local queda preparado. Su detalle operativo serÃ¡ flujo futuro.
   if (esEcommerceLocal) {
     return {
       noProcesadoMismoDia: false,
@@ -528,7 +515,7 @@ export function resolverNoProcesadoMismoDia({
     };
   }
 
-  // Posterior al corte de recolección queda justificado.
+  // Posterior al corte de recolecciÃ³n queda justificado.
   if (posteriorCorte) {
     return {
       noProcesadoMismoDia: false,
@@ -538,7 +525,7 @@ export function resolverNoProcesadoMismoDia({
     };
   }
 
-  // Si inicia trabajo al día siguiente sin causa justificada, afecta.
+  // Si inicia trabajo al dÃ­a siguiente sin causa justificada, afecta.
   if (
     fechaInicioTrabajo &&
     fechaIngreso &&
@@ -552,7 +539,7 @@ export function resolverNoProcesadoMismoDia({
     };
   }
 
-  // Si se terminó el mismo día, cumple.
+  // Si se terminÃ³ el mismo dÃ­a, cumple.
   if (fechaFinTrabajo && esMismaFecha(fechaFinTrabajo, fechaIngreso)) {
     return {
       noProcesadoMismoDia: false,
@@ -561,7 +548,7 @@ export function resolverNoProcesadoMismoDia({
     };
   }
 
-  // Si se terminó otro día, afecta.
+  // Si se terminÃ³ otro dÃ­a, afecta.
   if (
     fechaFinTrabajo &&
     fechaIngreso &&
@@ -575,7 +562,7 @@ export function resolverNoProcesadoMismoDia({
     };
   }
 
-  // Cambio tardío de estatus para cerrar/cancelar/retorno/reenvío.
+  // Cambio tardÃ­o de estatus para cerrar/cancelar/retorno/reenvÃ­o.
   if (
     esEstatusPedidoCierre(estatusPedido) &&
     fechaCambioEstatus &&
@@ -609,14 +596,6 @@ export function esPedidoResueltoParaCierreLote(pedido = {}) {
 export function resolverEstatusLotePorPedidos(pedidosDelLote = []) {
   if (!Array.isArray(pedidosDelLote) || pedidosDelLote.length === 0) {
     return ESTATUS_LOTE_ECOM.CREADO;
-  }
-
-  const todosCancelados = pedidosDelLote.every(
-    (pedido) => pedido.estatus === ESTATUS_PEDIDO_ECOM.CANCELADO
-  );
-
-  if (todosCancelados) {
-    return ESTATUS_LOTE_ECOM.CANCELADO;
   }
 
   const todosEnviados = pedidosDelLote.every(
@@ -682,7 +661,7 @@ export function construirPayloadRetornoBase({
 
 // ======================================================
 // INDICADORES INTERNOS DEL PEDIDO
-// Base futura para PDF / backend / auditoría.
+// Base futura para PDF / backend / auditorÃ­a.
 // ======================================================
 
 export function construirIndicadoresInternosPedido({
