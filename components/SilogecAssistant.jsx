@@ -9,15 +9,12 @@ import {
   X,
 } from "lucide-react";
 
-import { operations } from "../data/dashboardData";
 import {
-  ecommercePedidos,
-  recepciones,
-} from "../modules/ecommerce/data/ecommerceMockData";
-import {
+  STORAGE_HISTORIAL_KEY,
   STORAGE_LOTES_KEY,
   STORAGE_PEDIDOS_KEY,
 } from "../modules/ecommerce/constants";
+import { removerPedidosDemoPredeterminados } from "../modules/ecommerce/utils/ecommerceUtils";
 
 const initialMessages = [
   {
@@ -29,8 +26,8 @@ const initialMessages = [
 ];
 
 const suggestions = [
-  "Busca la guia 1Z999AA10123456784",
-  "Estatus del pedido ML-88271645",
+  "Busca una guia",
+  "Estatus de un pedido",
   "Muestra lotes abiertos",
   "Que pendientes hay?",
 ];
@@ -109,6 +106,18 @@ function formatLote(lote, pedidos) {
     .join("\n");
 }
 
+function formatMovimiento(movimiento) {
+  return [
+    `${movimiento.fecha || "-"} ${movimiento.hora || ""}`,
+    movimiento.tipo || "MOVIMIENTO",
+    movimiento.pedido ? `Pedido: ${movimiento.pedido}` : "",
+    movimiento.descripcion || "",
+    `Usuario: ${movimiento.usuario || "SILOGEC"}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function formatRecepcion(recepcion) {
   return [
     `Guia: ${recepcion.guia}`,
@@ -132,7 +141,7 @@ function formatOperacion(operacion) {
 
 function buildAnswer(question, data) {
   const q = normalize(question);
-  const { pedidos, lotes } = data;
+  const { pedidos, lotes, recepciones = [], operaciones = [] } = data;
 
   if (!q) {
     return "Escribe una guia, pedido, lote o pregunta operativa para consultar.";
@@ -144,9 +153,9 @@ function buildAnswer(question, data) {
       "- Buscar guia, pedido o folio.",
       "- Mostrar estatus de pedidos E-COM.",
       "- Resumir lotes y pendientes.",
-      "- Revisar recepciones y operaciones del panel.",
+      "- Revisar la bitacora operativa temporal.",
       "",
-      "Ejemplos: 'guia 1Z999AA10123456784', 'pedido ML-88271645', 'lotes abiertos'.",
+      "Ejemplos: 'guia DHL1234567', 'pedido 9001234567', 'lotes abiertos'.",
     ].join("\n");
   }
 
@@ -184,6 +193,25 @@ function buildAnswer(question, data) {
       .join("\n\n");
   }
 
+  if (q.includes("historial") || q.includes("movimiento") || q.includes("bitacora")) {
+    const queryWithoutWord = question
+      .replace(/historial|movimientos?|bitacora|lote|pedido|de|del/gi, "")
+      .trim();
+    const movimientos = data.historial.filter((movimiento) =>
+      containsQuery(
+        movimiento,
+        ["lote", "pedido", "tipo", "descripcion", "usuario"],
+        queryWithoutWord || question
+      )
+    );
+
+    if (movimientos.length === 0) {
+      return "No encontre movimientos para ese criterio en la bitacora temporal.";
+    }
+
+    return movimientos.slice(0, 6).map(formatMovimiento).join("\n\n");
+  }
+
   if (q.includes("lote") || q.includes("lotes")) {
     const queryWithoutWord = question.replace(/lotes?|estatus|folio|busca/gi, "").trim();
     const matches = queryWithoutWord
@@ -214,7 +242,7 @@ function buildAnswer(question, data) {
     containsQuery(item, ["guia", "origen", "estatus", "usuario"], query)
   );
 
-  const operacionMatches = operations.filter((item) =>
+  const operacionMatches = operaciones.filter((item) =>
     containsQuery(item, ["folio", "modulo", "estatus", "responsable", "prioridad"], query)
   );
 
@@ -251,8 +279,13 @@ function SilogecAssistant() {
 
   const data = useMemo(
     () => ({
-      pedidos: readStoredArray(STORAGE_PEDIDOS_KEY, ecommercePedidos),
+      pedidos: removerPedidosDemoPredeterminados(
+        readStoredArray(STORAGE_PEDIDOS_KEY, [])
+      ),
       lotes: readStoredArray(STORAGE_LOTES_KEY, []),
+      historial: readStoredArray(STORAGE_HISTORIAL_KEY, []),
+      recepciones: [],
+      operaciones: [],
     }),
     [open, messages.length]
   );
@@ -311,7 +344,7 @@ function SilogecAssistant() {
                 <p className="text-slate-500">Lotes</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-2">
-                <p className="font-bold text-[#061a2f]">{recepciones.length}</p>
+                <p className="font-bold text-[#061a2f]">{data.recepciones.length}</p>
                 <p className="text-slate-500">Guias</p>
               </div>
             </div>
