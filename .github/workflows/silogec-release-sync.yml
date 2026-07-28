@@ -1,0 +1,48 @@
+name: SILOGEC release sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .silogec-sync/READY
+
+permissions:
+  contents: write
+
+jobs:
+  sync-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Rebuild clean SILOGEC release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat .silogec-sync/chunk-* > /tmp/silogec-release.b64
+          base64 --decode /tmp/silogec-release.b64 > /tmp/silogec-release.tar.gz
+
+          echo "4e7783f086ae5c339f5aa825e1843968d755878b0751b46652a5367d7013c09c  /tmp/silogec-release.tar.gz" | sha256sum --check --strict
+
+          rm -rf src components pages modules hooks utils data services layouts lib context assets database scripts tests
+          rm -f App.jsx main.jsx index.css
+
+          tar -xzf /tmp/silogec-release.tar.gz -C .
+
+          rm -rf .silogec-sync
+          rm -f .github/workflows/silogec-release-sync.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No hay cambios que publicar."
+            exit 0
+          fi
+
+          git commit -m "Sync SILOGEC WEB v1.4.5(6)"
+          git push origin HEAD:main
