@@ -1,4 +1,4 @@
-name: Diagnose SILOGEC source payload
+name: Inspect SILOGEC payload formats
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  diagnose-payload:
+  inspect-payload:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
@@ -20,110 +20,53 @@ jobs:
           fetch-depth: 1
           show-progress: false
 
-      - name: Search candidate archive sequences
+      - name: Decode repaired payloads
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY' | tee payload-diagnostics.log
+          python - <<'PY' | tee payload-format.log
           from pathlib import Path
-          import base64
-          import hashlib
-          import itertools
-          import lzma
-          import tarfile
-          import io
+          import base64, gzip, hashlib, io, itertools, lzma, tarfile
 
-          root = Path('.silogec-candidates')
-          files = sorted(root.glob('*'))
-          print('== Candidate inventory ==')
-          for path in files:
-              data = path.read_bytes()
-              print(path.name, len(data), hashlib.sha256(data).hexdigest(), repr(data[:50]))
+          root=Path('.silogec-candidates')
+          text={p.name:p.read_text('ascii') for p in root.glob('*.txt')}
 
-          text = {p.name: p.read_text('ascii') for p in root.glob('*.txt')}
-          print('\n== Duplicate and overlap checks ==')
-          names = sorted(text)
-          for a, b in itertools.combinations(names, 2):
-              x, y = text[a], text[b]
-              if x == y:
-                  print('DUPLICATE', a, b)
-              elif x.startswith(y):
-                  print('PREFIX', b, 'is prefix of', a, len(y))
-              elif y.startswith(x):
-                  print('PREFIX', a, 'is prefix of', b, len(x))
-              else:
-                  overlap = 0
-                  limit = min(len(x), len(y))
-                  for n in range(limit, 63, -1):
-                      if x[-n:] == y[:n]:
-                          overlap = n
-                          break
-                  if overlap:
-                      print('OVERLAP', a, '->', b, overlap)
-
-          starts = [n for n, s in text.items() if s.startswith('/Td6WFo')]
-          continuations = [n for n in text if n not in starts and not n.startswith('10-') and not n.startswith('11-')]
-          print('\nSTARTS', starts)
-          print('CONTINUATIONS', continuations)
-
-          valid = []
-          def test_sequence(seq):
-              joined = ''.join(text[name] for name in seq)
-              try:
-                  raw = base64.b64decode(joined, validate=True)
-              except Exception:
-                  return
-              try:
-                  payload = lzma.decompress(raw)
-              except Exception:
-                  return
-              digest = hashlib.sha256(raw).hexdigest()
-              try:
-                  with tarfile.open(fileobj=io.BytesIO(payload), mode='r:') as tf:
-                      members = tf.getnames()
-              except Exception as exc:
-                  print('XZ_NOT_TAR', seq, len(raw), len(payload), digest, exc)
-                  return
-              print('VALID_ARCHIVE', '|'.join(seq), 'compressed=', len(raw), 'expanded=', len(payload), 'sha256=', digest, 'members=', len(members))
-              for member in members[:80]:
-                  print('  ', member)
-              valid.append((seq, raw, payload, members))
-
-          for start in starts:
-              pool = [n for n in continuations if n != start]
-              for length in range(0, len(pool) + 1):
-                  for perm in itertools.permutations(pool, length):
-                      test_sequence((start,) + perm)
-
-          print('\n== Known grouped streams ==')
-          grouped = [
-              tuple(n for n in names if n.startswith(('10-', '11-'))),
-              ('01-c15.txt','02-3445.txt','03-4a39.txt','04-4c57.txt','09-47e8.txt'),
-              ('01-c15.txt','02-3445.txt','05-4956.txt','04-4c57.txt','09-47e8.txt'),
-              ('06-f240.txt','07-7a91.txt','09-47e8.txt'),
-          ]
-          for seq in grouped:
-              if not seq or any(n not in text for n in seq):
-                  continue
-              joined = ''.join(text[n] for n in seq)
-              print('GROUP', seq, 'chars=', len(joined), 'mod4=', len(joined)%4, 'sha=', hashlib.sha256(joined.encode()).hexdigest())
-              try:
-                  raw = base64.b64decode(joined, validate=False)
-                  print(' decoded=', len(raw), 'prefix=', raw[:12], 'file_sha=', hashlib.sha256(raw).hexdigest())
+          def inspect(label, joined):
+              print('\n===', label, 'chars', len(joined), 'mod4', len(joined)%4, '===')
+              for pad in ('', '=', '==', '==='):
                   try:
-                      payload = lzma.decompress(raw)
-                      print(' lzma_ok expanded=', len(payload))
+                      raw=base64.b64decode(joined+pad, validate=True)
                   except Exception as exc:
-                      print(' lzma_fail', type(exc).__name__, str(exc))
-              except Exception as exc:
-                  print(' decode_fail', type(exc).__name__, str(exc))
+                      print('base64_fail pad',repr(pad),type(exc).__name__,str(exc)); continue
+                  print('base64_ok pad',repr(pad),'bytes',len(raw),'sha',hashlib.sha256(raw).hexdigest(),'prefix',raw[:12])
+                  for fmt,decoder in [('xz',lzma.decompress),('gzip',gzip.decompress)]:
+                      try:
+                          out=decoder(raw)
+                      except Exception as exc:
+                          print(fmt+'_fail',type(exc).__name__,str(exc)); continue
+                      print(fmt+'_ok','expanded',len(out),'sha',hashlib.sha256(out).hexdigest(),'prefix',repr(out[:100]))
+                      try:
+                          with tarfile.open(fileobj=io.BytesIO(out),mode='r:') as tf:
+                              names=tf.getnames()
+                          print('tar_ok members',len(names))
+                          for n in names[:80]: print(' ',n)
+                      except Exception as exc:
+                          print('tar_fail',type(exc).__name__,str(exc))
 
-          print('\nVALID_COUNT', len(valid))
+          inspect('06+07', text['06-f240.txt']+text['07-7a91.txt'])
+          inspect('06+07+09', text['06-f240.txt']+text['07-7a91.txt']+text['09-47e8.txt'])
+          inspect('10+11', text['10-eccd.txt']+text['11-7c1b.txt'])
+
+          # Test likely sequences for the first XZ stream, including the known half-chunk substitution.
+          candidates=['02-3445.txt','03-4a39.txt','04-4c57.txt','09-47e8.txt']
+          for r in range(1,len(candidates)+1):
+              for perm in itertools.permutations(candidates,r):
+                  inspect('01+'+'+'.join(perm), text['01-c15.txt']+''.join(text[n] for n in perm))
           PY
 
-      - name: Upload payload diagnostics
+      - name: Upload format diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: silogec-payload-sequence-diagnostics
-          path: payload-diagnostics.log
+          name: silogec-payload-format-diagnostics
+          path: payload-format.log
           retention-days: 1
