@@ -20,78 +20,110 @@ jobs:
           fetch-depth: 1
           show-progress: false
 
-      - name: Inspect candidate payloads
+      - name: Search candidate archive sequences
         shell: bash
         run: |
           set -euo pipefail
-          exec > >(tee payload-diagnostics.log) 2>&1
+          python - <<'PY' | tee payload-diagnostics.log
+          from pathlib import Path
+          import base64
+          import hashlib
+          import itertools
+          import lzma
+          import tarfile
+          import io
 
-          echo "== Candidate files =="
-          for f in .silogec-candidates/*; do
-            echo "--- $f"
-            wc -c "$f"
-            file "$f"
-            sha256sum "$f"
-            printf 'PREFIX: '
-            head -c 80 "$f" | tr '\n' ' '
-            echo
-          done
+          root = Path('.silogec-candidates')
+          files = sorted(root.glob('*'))
+          print('== Candidate inventory ==')
+          for path in files:
+              data = path.read_bytes()
+              print(path.name, len(data), hashlib.sha256(data).hexdigest(), repr(data[:50]))
 
-          echo "== Individual base64 decode checks =="
-          shopt -s nullglob
-          for f in .silogec-candidates/*.txt; do
-            out="/tmp/$(basename "$f").decoded"
-            if base64 --decode "$f" > "$out" 2>/dev/null; then
-              echo "DECODE_OK $f"
-              file "$out"
-              if xz -t "$out" 2>/dev/null; then
-                echo "XZ_OK $f"
-                tar -tJf "$out" | head -30 || true
-              fi
-            else
-              echo "DECODE_FAIL $f"
-            fi
-          done
+          text = {p.name: p.read_text('ascii') for p in root.glob('*.txt')}
+          print('\n== Duplicate and overlap checks ==')
+          names = sorted(text)
+          for a, b in itertools.combinations(names, 2):
+              x, y = text[a], text[b]
+              if x == y:
+                  print('DUPLICATE', a, b)
+              elif x.startswith(y):
+                  print('PREFIX', b, 'is prefix of', a, len(y))
+              elif y.startswith(x):
+                  print('PREFIX', a, 'is prefix of', b, len(x))
+              else:
+                  overlap = 0
+                  limit = min(len(x), len(y))
+                  for n in range(limit, 63, -1):
+                      if x[-n:] == y[:n]:
+                          overlap = n
+                          break
+                  if overlap:
+                      print('OVERLAP', a, '->', b, overlap)
 
-          echo "== Contiguous text combinations =="
-          mapfile -t files < <(find .silogec-candidates -maxdepth 1 -name '*.txt' | sort)
-          count=${#files[@]}
-          for ((i=0; i<count; i++)); do
-            parts=()
-            for ((j=i; j<count; j++)); do
-              parts+=("${files[j]}")
-              cat "${parts[@]}" > /tmp/combo.b64
-              if base64 --decode /tmp/combo.b64 > /tmp/combo.bin 2>/dev/null; then
-                if xz -t /tmp/combo.bin 2>/dev/null; then
-                  echo "VALID_XZ start=$i end=$j"
-                  printf 'FILES:'
-                  printf ' %s' "${parts[@]}"
-                  echo
-                  sha256sum /tmp/combo.bin
-                  file /tmp/combo.bin
-                  echo "ARCHIVE_LIST_BEGIN"
-                  tar -tJf /tmp/combo.bin | head -60 || true
-                  echo "ARCHIVE_LIST_END"
-                fi
-              fi
-            done
-          done
+          starts = [n for n, s in text.items() if s.startswith('/Td6WFo')]
+          continuations = [n for n in text if n not in starts and not n.startswith('10-') and not n.startswith('11-')]
+          print('\nSTARTS', starts)
+          print('CONTINUATIONS', continuations)
 
-          echo "== Binary candidate =="
-          if [ -f .silogec-candidates/08-7cfa.bin ]; then
-            file .silogec-candidates/08-7cfa.bin
-            sha256sum .silogec-candidates/08-7cfa.bin
-            if xz -t .silogec-candidates/08-7cfa.bin 2>/dev/null; then
-              echo "BINARY_XZ_OK"
-              tar -tJf .silogec-candidates/08-7cfa.bin | head -60 || true
-            else
-              echo "BINARY_XZ_FAIL"
-            fi
-          fi
+          valid = []
+          def test_sequence(seq):
+              joined = ''.join(text[name] for name in seq)
+              try:
+                  raw = base64.b64decode(joined, validate=True)
+              except Exception:
+                  return
+              try:
+                  payload = lzma.decompress(raw)
+              except Exception:
+                  return
+              digest = hashlib.sha256(raw).hexdigest()
+              try:
+                  with tarfile.open(fileobj=io.BytesIO(payload), mode='r:') as tf:
+                      members = tf.getnames()
+              except Exception as exc:
+                  print('XZ_NOT_TAR', seq, len(raw), len(payload), digest, exc)
+                  return
+              print('VALID_ARCHIVE', '|'.join(seq), 'compressed=', len(raw), 'expanded=', len(payload), 'sha256=', digest, 'members=', len(members))
+              for member in members[:80]:
+                  print('  ', member)
+              valid.append((seq, raw, payload, members))
+
+          for start in starts:
+              pool = [n for n in continuations if n != start]
+              for length in range(0, len(pool) + 1):
+                  for perm in itertools.permutations(pool, length):
+                      test_sequence((start,) + perm)
+
+          print('\n== Known grouped streams ==')
+          grouped = [
+              tuple(n for n in names if n.startswith(('10-', '11-'))),
+              ('01-c15.txt','02-3445.txt','03-4a39.txt','04-4c57.txt','09-47e8.txt'),
+              ('01-c15.txt','02-3445.txt','05-4956.txt','04-4c57.txt','09-47e8.txt'),
+              ('06-f240.txt','07-7a91.txt','09-47e8.txt'),
+          ]
+          for seq in grouped:
+              if not seq or any(n not in text for n in seq):
+                  continue
+              joined = ''.join(text[n] for n in seq)
+              print('GROUP', seq, 'chars=', len(joined), 'mod4=', len(joined)%4, 'sha=', hashlib.sha256(joined.encode()).hexdigest())
+              try:
+                  raw = base64.b64decode(joined, validate=False)
+                  print(' decoded=', len(raw), 'prefix=', raw[:12], 'file_sha=', hashlib.sha256(raw).hexdigest())
+                  try:
+                      payload = lzma.decompress(raw)
+                      print(' lzma_ok expanded=', len(payload))
+                  except Exception as exc:
+                      print(' lzma_fail', type(exc).__name__, str(exc))
+              except Exception as exc:
+                  print(' decode_fail', type(exc).__name__, str(exc))
+
+          print('\nVALID_COUNT', len(valid))
+          PY
 
       - name: Upload payload diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: silogec-payload-diagnostics
+          name: silogec-payload-sequence-diagnostics
           path: payload-diagnostics.log
           retention-days: 1
