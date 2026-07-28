@@ -1,0 +1,45 @@
+name: SILOGEC release sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .silogec-sync/READY
+
+permissions:
+  contents: write
+
+jobs:
+  sync-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Apply SILOGEC v1.4.5(6)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat .silogec-sync/patch-* > /tmp/silogec-v1456.patch.gz.b64
+          base64 --decode /tmp/silogec-v1456.patch.gz.b64 | gzip -dc > /tmp/silogec-v1456.patch
+          echo "2636ac46c202335ab2eb187b87ea1874f655a105112e9149a8f19e0374d22a67  /tmp/silogec-v1456.patch" | sha256sum --check --strict
+
+          git apply --check /tmp/silogec-v1456.patch
+          git apply /tmp/silogec-v1456.patch
+
+          rm -rf .silogec-sync
+          rm -f .github/workflows/silogec-release-sync.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No hay cambios que publicar."
+            exit 0
+          fi
+
+          git commit -m "Update SILOGEC WEB to v1.4.5(6)"
+          git push origin HEAD:main
