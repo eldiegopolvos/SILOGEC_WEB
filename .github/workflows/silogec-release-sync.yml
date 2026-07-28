@@ -1,4 +1,4 @@
-name: Apply SILOGEC v1.4.5(6) source
+name: Diagnose SILOGEC source payload
 
 on:
   pull_request:
@@ -7,11 +7,10 @@ on:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
-  apply-source:
+  diagnose-payload:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
@@ -21,51 +20,78 @@ jobs:
           fetch-depth: 1
           show-progress: false
 
-      - name: Assemble and verify source patch
+      - name: Inspect candidate payloads
         shell: bash
         run: |
           set -euo pipefail
-          cat .silogec-sync/patch-* > /tmp/silogec-v1456.patch.gz.b64
-          base64 --decode /tmp/silogec-v1456.patch.gz.b64 | gzip -dc > /tmp/silogec-v1456.patch
-          echo "2636ac46c202335ab2eb187b87ea1874f655a105112e9149a8f19e0374d22a67  /tmp/silogec-v1456.patch" | sha256sum --check --strict
+          exec > >(tee payload-diagnostics.log) 2>&1
 
-      - name: Diagnose patch compatibility
-        id: patchcheck
-        shell: bash
-        run: |
-          set +e
-          git apply --check /tmp/silogec-v1456.patch > patch-check.log 2>&1
-          status=$?
-          echo "$status" > patch-check.status
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          cat patch-check.log
-          exit 0
+          echo "== Candidate files =="
+          for f in .silogec-candidates/*; do
+            echo "--- $f"
+            wc -c "$f"
+            file "$f"
+            sha256sum "$f"
+            printf 'PREFIX: '
+            head -c 80 "$f" | tr '\n' ' '
+            echo
+          done
 
-      - name: Upload patch diagnostics
+          echo "== Individual base64 decode checks =="
+          shopt -s nullglob
+          for f in .silogec-candidates/*.txt; do
+            out="/tmp/$(basename "$f").decoded"
+            if base64 --decode "$f" > "$out" 2>/dev/null; then
+              echo "DECODE_OK $f"
+              file "$out"
+              if xz -t "$out" 2>/dev/null; then
+                echo "XZ_OK $f"
+                tar -tJf "$out" | head -30 || true
+              fi
+            else
+              echo "DECODE_FAIL $f"
+            fi
+          done
+
+          echo "== Contiguous text combinations =="
+          mapfile -t files < <(find .silogec-candidates -maxdepth 1 -name '*.txt' | sort)
+          count=${#files[@]}
+          for ((i=0; i<count; i++)); do
+            parts=()
+            for ((j=i; j<count; j++)); do
+              parts+=("${files[j]}")
+              cat "${parts[@]}" > /tmp/combo.b64
+              if base64 --decode /tmp/combo.b64 > /tmp/combo.bin 2>/dev/null; then
+                if xz -t /tmp/combo.bin 2>/dev/null; then
+                  echo "VALID_XZ start=$i end=$j"
+                  printf 'FILES:'
+                  printf ' %s' "${parts[@]}"
+                  echo
+                  sha256sum /tmp/combo.bin
+                  file /tmp/combo.bin
+                  echo "ARCHIVE_LIST_BEGIN"
+                  tar -tJf /tmp/combo.bin | head -60 || true
+                  echo "ARCHIVE_LIST_END"
+                fi
+              fi
+            done
+          done
+
+          echo "== Binary candidate =="
+          if [ -f .silogec-candidates/08-7cfa.bin ]; then
+            file .silogec-candidates/08-7cfa.bin
+            sha256sum .silogec-candidates/08-7cfa.bin
+            if xz -t .silogec-candidates/08-7cfa.bin 2>/dev/null; then
+              echo "BINARY_XZ_OK"
+              tar -tJf .silogec-candidates/08-7cfa.bin | head -60 || true
+            else
+              echo "BINARY_XZ_FAIL"
+            fi
+          fi
+
+      - name: Upload payload diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: silogec-patch-diagnostics
-          path: |
-            patch-check.log
-            patch-check.status
+          name: silogec-payload-diagnostics
+          path: payload-diagnostics.log
           retention-days: 1
-
-      - name: Apply patch and publish source
-        if: steps.patchcheck.outputs.status == '0'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git apply /tmp/silogec-v1456.patch
-          rm -rf .silogec-sync
-          rm -f .github/workflows/silogec-release-sync.yml
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-
-          git commit -m "Update SILOGEC WEB to v1.4.5(6)"
-          git push origin HEAD:${{ github.head_ref }}
-
-      - name: Fail when patch is incompatible
-        if: steps.patchcheck.outputs.status != '0'
-        run: exit 1
