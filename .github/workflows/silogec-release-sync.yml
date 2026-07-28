@@ -22,7 +22,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          cat .silogec-sync/chunk-* > /tmp/silogec-release.b64
+          cat .silogec-sync/group-* > /tmp/silogec-release.b64
           base64 --decode /tmp/silogec-release.b64 > /tmp/silogec-release.tar.xz
 
           echo "f04f5ee89bac64f2dd3577a6ef3f57b44c6ee73da105ddef2a0c8003e09fa438  /tmp/silogec-release.tar.xz" | sha256sum --check --strict
