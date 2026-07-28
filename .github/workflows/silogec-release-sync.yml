@@ -17,20 +17,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Rebuild clean SILOGEC release
+      - name: Apply SILOGEC v1.4.5(6)
         shell: bash
         run: |
           set -euo pipefail
 
-          cat .silogec-sync/group-* > /tmp/silogec-release.b64
-          base64 --decode /tmp/silogec-release.b64 > /tmp/silogec-release.tar.xz
+          cat .silogec-sync/patch-* > /tmp/silogec-v1456.patch.gz.b64
+          base64 --decode /tmp/silogec-v1456.patch.gz.b64 | gzip -dc > /tmp/silogec-v1456.patch
+          echo "2636ac46c202335ab2eb187b87ea1874f655a105112e9149a8f19e0374d22a67  /tmp/silogec-v1456.patch" | sha256sum --check --strict
 
-          echo "f04f5ee89bac64f2dd3577a6ef3f57b44c6ee73da105ddef2a0c8003e09fa438  /tmp/silogec-release.tar.xz" | sha256sum --check --strict
-
-          rm -rf src components pages modules hooks utils data services layouts lib context assets database scripts tests
-          rm -f App.jsx main.jsx index.css
-
-          tar -xJf /tmp/silogec-release.tar.xz -C .
+          git apply --check /tmp/silogec-v1456.patch
+          git apply /tmp/silogec-v1456.patch
 
           rm -rf .silogec-sync
           rm -f .github/workflows/silogec-release-sync.yml
@@ -44,5 +41,5 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Sync SILOGEC WEB v1.4.5(6)"
+          git commit -m "Update SILOGEC WEB to v1.4.5(6)"
           git push origin HEAD:main
