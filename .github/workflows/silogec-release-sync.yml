@@ -20,18 +20,26 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: Apply verified SILOGEC source patch
+      - name: Assemble and verify source patch
         shell: bash
         run: |
           set -euo pipefail
-
           cat .silogec-sync/patch-* > /tmp/silogec-v1456.patch.gz.b64
           base64 --decode /tmp/silogec-v1456.patch.gz.b64 | gzip -dc > /tmp/silogec-v1456.patch
           echo "2636ac46c202335ab2eb187b87ea1874f655a105112e9149a8f19e0374d22a67  /tmp/silogec-v1456.patch" | sha256sum --check --strict
+          echo "PATCH_READY size=$(wc -c < /tmp/silogec-v1456.patch)"
 
+      - name: Validate patch against current branch
+        shell: bash
+        run: |
+          set -euo pipefail
           git apply --check /tmp/silogec-v1456.patch
-          git apply /tmp/silogec-v1456.patch
 
+      - name: Apply patch and publish source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply /tmp/silogec-v1456.patch
           rm -rf .silogec-sync
           rm -f .github/workflows/silogec-release-sync.yml
 
