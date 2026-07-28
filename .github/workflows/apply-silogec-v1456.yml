@@ -1,0 +1,126 @@
+name: Apply SILOGEC v1.4.5(6) source
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  apply-source:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Rebuild verified source archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/release.b64
+
+          for sha in \
+            e99901a46fc6cfe81d063e54a0eed6b2e0897709 \
+            11e1d2fc87dfb4422bca63228d10bf71ed62779c \
+            e0901dd205a77345841c94b3ad9d388c3a0e7734 \
+            1f1f5b39c847011fe5fd60301dfe21dc3e74860d \
+            710049d270507b22b9c138c769401e7974362c44 \
+            dbd523dcf50d8c96bf4611ce85582254e6ba3a8a \
+            8444997cecad690df6be2bc31a0fc423623fa689 \
+            03b56fffbf1989c3f0269aa8676c3d4e079f8f53 \
+            53dbed7d58fc4c6c4dd7f31bfbb033dffbaaab49 \
+            cd6cf88d8d4c9e89eeaea50326224b7e1f9143db \
+            1077b56faa0681d09b57b4c034d0fb5a24b3aaee \
+            c7e648a9632091d4650ff6c8b3b699fe1db24812 \
+            057303477cbfca10a8d96b983e4aa629d89b91ed \
+            20d71b24a36954cc45de9ba20476706258006d03 \
+            94042f2f483ff7eb4babe2b18f535af4e16b7447 \
+            6b3105a74d50844613594de136fbeecb57254019 \
+            3e1d9a4c487948e15e24e26a04117f8f1f51fd1b \
+            e960f69f1bfc1708e6f523c268d2a5715f85d715 \
+            b8db5c6a19a1110c07051e2fc61950870e074e3e \
+            00b785ac48940ed353f52d8fd60ecf005fefff00 \
+            26f10facccfeae53624cd10000fb32d93bdd35e0 \
+            24912a35b37a94fecb6d75c97f102002a0ae1e46 \
+            2178769ba4f03831baf3b3624d81a413d9d0b58b \
+            c92138bb4e093491a1c92669be2f28c4060b6b2f \
+            b0a334a7ca9a2eabb86f5c5301a73a264082cbf5 \
+            aa6d0562476457b900e6bc1a94a726cc4aca7b8a \
+            71b8ec7d2904407fb0b6dccab2796b08e48849c8 \
+            09b289a4ed5dccdcf2a11058b5956e7ae0d4aeeb \
+            287cd0cd13822846ac44a09d5d119432bc1653da \
+            30f92f525dd80f58412f679dd7d9a7d8f670977e \
+            ee88563c1e13e281a31bb92c544a7055dbfb5c56 \
+            bed7b89c4d201abc3d48879d05de0b97c325716b \
+            f39104fa78693a6d0fb042fa5c5de888b9f9da61 \
+            73a6314640afa431005daf323440d97d3741c723 \
+            1761c64e63c817dfd17a4a40a88fd4161c95edfd \
+            87785478e4040373f9106f2886a46782dcdc156a \
+            e09a4e5af0195adef70b7b888b284e063755b431 \
+            a89b3fddc3c4bc3cd5db0324730ed6b3e43a985a \
+            f36058fd2e5844c6b0313ccb614b3f6669567c74 \
+            86e3ff1349d12350f8676f8f19430419eda8c145 \
+            b3a9f6ca6e6a63b8e421ce42bea7d6a9238b1431 \
+            da438efdebb9868c7988e14661bf1e024b58d7f2 \
+            bd9ea588ed7e268e222015a828b17fb96e4e11fb \
+            acc88f9290d697432ac3a820bc17e72d44d28650 \
+            19781adb7b812b69e9e950d4b65bffcab90be9aa \
+            2d50f43f2a5140f59b29271b6b530c89e948b3df \
+            05b221c16531f4b10eeea882f6a66593792185b1
+          do
+            curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${REPO}/git/blobs/${sha}" \
+            | jq -er '.content' \
+            | tr -d '\n' \
+            | base64 --decode >> /tmp/release.b64
+          done
+
+          base64 --decode /tmp/release.b64 > /tmp/release.tar.xz
+          echo "6598486ace54a0342990cd69410f1813db19454f69197c7985ede16cdbbae8f6  /tmp/release.tar.xz" | sha256sum --check --strict
+          xz -t /tmp/release.tar.xz
+
+      - name: Replace repository with clean source
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name .git \
+            ! -name .github \
+            -exec rm -rf {} +
+
+          tar -xJf /tmp/release.tar.xz -C .
+
+          rm -rf .silogec-sync .silogec-candidates .silogec-release
+          rm -f .github/workflows/apply-silogec-v1456.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No source changes detected."
+            exit 0
+          fi
+
+          git commit -m "Update SILOGEC WEB to v1.4.5(6)"
+          git push origin HEAD:${{ github.head_ref }}
