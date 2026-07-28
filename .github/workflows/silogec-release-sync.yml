@@ -23,14 +23,14 @@ jobs:
           set -euo pipefail
 
           cat .silogec-sync/chunk-* > /tmp/silogec-release.b64
-          base64 --decode /tmp/silogec-release.b64 > /tmp/silogec-release.tar.gz
+          base64 --decode /tmp/silogec-release.b64 > /tmp/silogec-release.tar.xz
 
-          echo "4e7783f086ae5c339f5aa825e1843968d755878b0751b46652a5367d7013c09c  /tmp/silogec-release.tar.gz" | sha256sum --check --strict
+          echo "d9629c1eda38f32c6b1f142ab889217516691f95b8a567308ae0f323e9a158ec  /tmp/silogec-release.tar.xz" | sha256sum --check --strict
 
           rm -rf src components pages modules hooks utils data services layouts lib context assets database scripts tests
           rm -f App.jsx main.jsx index.css
 
-          tar -xzf /tmp/silogec-release.tar.gz -C .
+          tar -xJf /tmp/silogec-release.tar.xz -C .
 
           rm -rf .silogec-sync
           rm -f .github/workflows/silogec-release-sync.yml
