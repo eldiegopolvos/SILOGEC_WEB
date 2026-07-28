@@ -18,7 +18,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
-          fetch-depth: 0
+          fetch-depth: 1
+          show-progress: false
 
       - name: Assemble and verify source patch
         shell: bash
@@ -27,15 +28,30 @@ jobs:
           cat .silogec-sync/patch-* > /tmp/silogec-v1456.patch.gz.b64
           base64 --decode /tmp/silogec-v1456.patch.gz.b64 | gzip -dc > /tmp/silogec-v1456.patch
           echo "2636ac46c202335ab2eb187b87ea1874f655a105112e9149a8f19e0374d22a67  /tmp/silogec-v1456.patch" | sha256sum --check --strict
-          echo "PATCH_READY size=$(wc -c < /tmp/silogec-v1456.patch)"
 
-      - name: Validate patch against current branch
+      - name: Diagnose patch compatibility
+        id: patchcheck
         shell: bash
         run: |
-          set -euo pipefail
-          git apply --check /tmp/silogec-v1456.patch
+          set +e
+          git apply --check /tmp/silogec-v1456.patch > patch-check.log 2>&1
+          status=$?
+          echo "$status" > patch-check.status
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          cat patch-check.log
+          exit 0
+
+      - name: Upload patch diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: silogec-patch-diagnostics
+          path: |
+            patch-check.log
+            patch-check.status
+          retention-days: 1
 
       - name: Apply patch and publish source
+        if: steps.patchcheck.outputs.status == '0'
         shell: bash
         run: |
           set -euo pipefail
@@ -47,10 +63,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
 
-          if git diff --cached --quiet; then
-            echo "No hay cambios que publicar."
-            exit 0
-          fi
-
           git commit -m "Update SILOGEC WEB to v1.4.5(6)"
           git push origin HEAD:${{ github.head_ref }}
+
+      - name: Fail when patch is incompatible
+        if: steps.patchcheck.outputs.status != '0'
+        run: exit 1
